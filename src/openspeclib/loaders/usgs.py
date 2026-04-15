@@ -96,9 +96,11 @@ def _classify_from_path(filepath: Path) -> MaterialCategory:
 def _detect_spectrometer(filename: str) -> str:
     """Extract spectrometer abbreviation from the USGS filename convention.
 
-    USGS filenames follow patterns like ``s07AV95a_Olivine_GDS70.a_ASD.txt``
-    where the last underscore-delimited segment before ``.txt`` is the
-    spectrometer code.
+    USGS splib07a/b filenames follow the pattern
+    ``splib07a_<Material>[_<SampleID...>]_<Spectrometer>_<DataType>.txt``
+    where ``<DataType>`` is the final segment (e.g. ``AREF``, ``RREF``,
+    ``RTGC``, ``TRAN``) and ``<Spectrometer>`` is the segment immediately
+    before it (e.g. ``BECKa``, ``ASDFRb``, ``NIC4a``, ``AVIRISb``).
 
     Args:
         filename: Spectrum filename (basename, not full path).
@@ -108,39 +110,81 @@ def _detect_spectrometer(filename: str) -> str:
     """
     stem = Path(filename).stem
     parts = stem.split("_")
-    if len(parts) >= 2:
-        return parts[-1]
+    if len(parts) >= 3:
+        return parts[-2]
     return "unknown"
+
+
+# Prefix -> wavelength-file family. All ASD sub-families (ASDFR/ASDHR/ASDNG)
+# share one wavelength axis file named ``...Wavelengths_ASD_...``.
+_WAVELENGTH_FAMILIES: tuple[tuple[str, str], ...] = (
+    ("ASD", "asd"),
+    ("AVIRIS", "aviris"),
+    ("BECK", "beck"),
+    ("NIC4", "nic4"),
+)
+
+# Prefix -> bandpass-file family. The ASD sub-families each have their own
+# FWHM file (standard/high-res/next-gen) so they must be distinguished.
+_BANDPASS_FAMILIES: tuple[tuple[str, str], ...] = (
+    ("ASDFR", "asdfr"),
+    ("ASDHR", "asdhr"),
+    ("ASDNG", "asdng"),
+    ("AVIRIS", "aviris"),
+    ("BECK", "beck"),
+    ("NIC4", "nic4"),
+)
+
+
+def _match_family(code: str, families: tuple[tuple[str, str], ...]) -> str | None:
+    """Return the family token for ``code`` from a prefix mapping, or ``None``.
+
+    Args:
+        code: Spectrometer code (case-insensitive, e.g. ``"ASDFRa"``).
+        families: Ordered ``(prefix, family_token)`` pairs. First prefix
+            match wins, so more specific prefixes should come first.
+
+    Returns:
+        The matching family token, or ``None`` if no prefix matches.
+    """
+    upper = code.upper()
+    for prefix, family in families:
+        if upper.startswith(prefix):
+            return family
+    return None
 
 
 def _parse_name_from_filename(filename: str) -> tuple[str, str]:
     """Extract a human-readable name and sample ID from a USGS filename.
 
+    Parses the splib07a/b convention
+    ``splib07a_<Material>[_<SampleID...>]_<Spectrometer>_<DataType>.txt``
+    by stripping the library prefix and the trailing two segments.
+
     Args:
         filename: Spectrum filename (basename, not full path).
 
     Returns:
-        Tuple of ``(material_name, sample_id)``.
+        Tuple of ``(material_name, sample_id)``. ``sample_id`` is the
+        joined remaining segments (may be empty).
     """
     stem = Path(filename).stem
-    # Remove the leading prefix (e.g., "s07AV95a_") — alphanumeric only, stop at first _
-    match = re.match(r"s\d+[A-Za-z0-9]+_(.+)", stem)
-    if match:
-        remainder = match.group(1)
+    parts = stem.split("_")
+
+    # Strip library prefix (first) and <Spectrometer>_<DataType> (last two).
+    if len(parts) >= 4:
+        middle = parts[1:-2]
+    elif len(parts) >= 3:
+        middle = parts[1:-1]
     else:
-        remainder = stem
+        middle = parts
 
-    # The last segment is the spectrometer; remove it
-    parts = remainder.rsplit("_", 1)
-    name_part = parts[0] if len(parts) > 1 else remainder
+    if not middle:
+        return stem, ""
 
-    # Try to split into material name and sample ID
-    # Pattern: MaterialName_SampleID (e.g., "Olivine_GDS70.a")
-    name_parts = name_part.split("_", 1)
-    material_name = name_parts[0].replace("+", " ")
-    sample_id = name_parts[1] if len(name_parts) > 1 else None
-
-    return material_name, sample_id or ""
+    material_name = middle[0].replace("+", " ")
+    sample_id = "_".join(middle[1:])
+    return material_name, sample_id
 
 
 def _read_single_column(filepath: Path) -> list[float]:
@@ -168,8 +212,10 @@ def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     """Find the wavelength file corresponding to a spectrum file.
 
     USGS stores wavelength files with names like
-    ``s07_AV95_Wavelengths_ASD.txt``. This function searches the directory
-    tree for a wavelength file matching the spectrometer code.
+    ``splib07a_Wavelengths_ASD_0.35-2.5_microns_2151_ch.txt``. The
+    instrument family (``ASD``, ``AVIRIS``, ``BECK``, ``NIC4``) appears
+    as an underscore-delimited token, and all sub-family spectrometers
+    (e.g. ``ASDFRa``, ``ASDHRb``, ``ASDNGc``) share the same axis.
 
     Args:
         spectrum_path: Path to the spectrum file.
@@ -179,18 +225,22 @@ def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
         Path to the matching wavelength file, or ``None`` if not found.
     """
     spectrometer = _detect_spectrometer(spectrum_path.name)
-    # Search for wavelength files
+    family = _match_family(spectrometer, _WAVELENGTH_FAMILIES)
+    if family is None:
+        return None
     for wl_file in source_dir.rglob("*[Ww]avelength*"):
-        if spectrometer.lower() in wl_file.stem.lower():
+        tokens = wl_file.stem.lower().split("_")
+        if family in tokens:
             return wl_file
-    # Also check for files with "wlsall" or similar patterns
-    for wl_file in source_dir.rglob("*wlsall*"):
-        return wl_file
     return None
 
 
 def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     """Find the bandpass/FWHM file for the spectrometer.
+
+    Unlike wavelengths, each ASD sub-family (``ASDFR``, ``ASDHR``,
+    ``ASDNG``) has its own FWHM file at a different native resolution,
+    so this function preserves that distinction.
 
     Args:
         spectrum_path: Path to the spectrum file.
@@ -200,11 +250,16 @@ def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
         Path to the matching bandpass file, or ``None`` if not found.
     """
     spectrometer = _detect_spectrometer(spectrum_path.name)
+    family = _match_family(spectrometer, _BANDPASS_FAMILIES)
+    if family is None:
+        return None
     for bp_file in source_dir.rglob("*[Bb]andpass*"):
-        if spectrometer.lower() in bp_file.stem.lower():
+        tokens = bp_file.stem.lower().split("_")
+        if family in tokens:
             return bp_file
     for bp_file in source_dir.rglob("*[Ff]whm*"):
-        if spectrometer.lower() in bp_file.stem.lower():
+        tokens = bp_file.stem.lower().split("_")
+        if family in tokens:
             return bp_file
     return None
 
@@ -351,16 +406,29 @@ class UsgsLoader(BaseLoader):
         Searches for spectrum data files, matches them with wavelength
         files by spectrometer, and yields SpectrumRecord objects.
         """
-        # Find all potential spectrum files (exclude wavelength/bandpass files)
+        # Scope ingest to the splib07a main library (standard-resolution
+        # canonical sampling). The splib07b archive and the various
+        # ``..._cvAVIRIS*`` / ``..._cvASD*`` subdirectories are
+        # re-convolved/resampled copies of the same underlying spectra;
+        # including them would double-count. Errorbars files are the
+        # per-band 1-sigma uncertainties, not spectra in their own right.
         all_txt = sorted(source_dir.rglob("*.txt"))
         spectrum_files = [
             f
             for f in all_txt
-            if not any(
+            if "errorbars" not in (p.lower() for p in f.parts)
+            and not any(
                 kw in f.name.lower()
-                for kw in ["wavelength", "bandpass", "fwhm", "readme", "description"]
+                for kw in [
+                    "wavelength",
+                    "wavenumber",
+                    "bandpass",
+                    "fwhm",
+                    "readme",
+                    "description",
+                ]
             )
-            and re.match(r"s\d+", f.name)
+            and re.match(r"splib07a_", f.name)
         ]
 
         logger.info("Found %d USGS spectrum files", len(spectrum_files))

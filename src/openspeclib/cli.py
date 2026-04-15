@@ -108,8 +108,12 @@ def ingest(source: str, input_dir: Path, output: Path) -> None:
     loader = _get_loader(source)
     output.mkdir(parents=True, exist_ok=True)
 
+    # Name the jsonl by the loader's canonical source identifier (e.g.
+    # ``usgs_splib07``) rather than the CLI source key (``usgs``) so that
+    # combine.py's source-keyed metadata aligns with each record's
+    # ``source.library`` value downstream in validation.
     count = 0
-    records_file = output / f"{source}.jsonl"
+    records_file = output / f"{loader.source_name()}.jsonl"
 
     click.echo(f"Ingesting {source} from {input_dir}...")
     with open(records_file, "w", encoding="utf-8") as f:
