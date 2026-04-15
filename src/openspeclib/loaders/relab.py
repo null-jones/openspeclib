@@ -208,6 +208,11 @@ def parse_relab_file(filepath: Path) -> SpectrumRecord:
 class RelabLoader(BaseLoader):
     """Loader for the RELAB Spectral Database."""
 
+    @property
+    def supports_auto_download(self) -> bool:
+        """RELAB requires manual download from the PDS Geosciences Node."""
+        return False
+
     def source_name(self) -> str:
         """Return the source library identifier."""
         return "relab"

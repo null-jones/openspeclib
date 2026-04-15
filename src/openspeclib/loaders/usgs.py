@@ -34,7 +34,9 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
-USGS_DOWNLOAD_URL = "https://crustal.usgs.gov/speclab/QueryAll07a.php"
+USGS_DOWNLOAD_URL = (
+    "https://www.sciencebase.gov/catalog/file/get/5807a2a2e4b0841e59e3a18d" "?f=usgs_splib07.zip"
+)
 
 USGS_SOURCE = Source(
     library=SourceLibrary.USGS_SPLIB07,
@@ -293,6 +295,14 @@ class UsgsLoader(BaseLoader):
             logger.info("Downloading USGS Speclib 07...")
             resp = requests.get(USGS_DOWNLOAD_URL, stream=True, timeout=600)
             resp.raise_for_status()
+
+            content_type = resp.headers.get("content-type", "")
+            if "text/html" in content_type:
+                raise RuntimeError(
+                    f"USGS download URL returned HTML instead of a ZIP archive. "
+                    f"The download URL may have changed: {USGS_DOWNLOAD_URL}"
+                )
+
             total = int(resp.headers.get("content-length", 0))
             with (
                 open(archive_path, "wb") as f,
@@ -301,6 +311,13 @@ class UsgsLoader(BaseLoader):
                 for chunk in resp.iter_content(chunk_size=8192):
                     f.write(chunk)
                     bar.update(len(chunk))
+
+            if not zipfile.is_zipfile(archive_path):
+                archive_path.unlink()
+                raise RuntimeError(
+                    f"Downloaded file is not a valid ZIP archive. "
+                    f"The download URL may have changed: {USGS_DOWNLOAD_URL}"
+                )
 
         extract_dir = target_dir / "usgs_splib07"
         if not extract_dir.exists():

@@ -72,9 +72,15 @@ def main(verbose: bool) -> None:
 def download(source: str, target: Path) -> None:
     """Download a source spectral library."""
     loader = _get_loader(source)
-    click.echo(f"Downloading {source} to {target}...")
+    if not loader.supports_auto_download:
+        click.echo(
+            f"Note: {source} does not support automatic download. "
+            f"Data must be placed manually in {target}."
+        )
+    else:
+        click.echo(f"Downloading {source} to {target}...")
     result_path = loader.download(target)
-    click.echo(f"Downloaded to {result_path}")
+    click.echo(f"Data directory: {result_path}")
 
 
 @main.command()
@@ -111,7 +117,15 @@ def ingest(source: str, input_dir: Path, output: Path) -> None:
             f.write(record.model_dump_json() + "\n")
             count += 1
 
-    click.echo(f"Ingested {count} spectra to {records_file}")
+    if count == 0:
+        click.echo(
+            f"Warning: no spectra found for {source} in {input_dir}. "
+            f"Ensure the source data has been downloaded and placed correctly.",
+            err=True,
+        )
+        records_file.unlink(missing_ok=True)
+    else:
+        click.echo(f"Ingested {count} spectra to {records_file}")
 
 
 @main.command()

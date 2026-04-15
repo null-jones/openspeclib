@@ -198,6 +198,11 @@ def parse_asu_tes_file(filepath: Path) -> SpectrumRecord:
 class AsuTesLoader(BaseLoader):
     """Loader for the ASU Thermal Emission Spectral Library."""
 
+    @property
+    def supports_auto_download(self) -> bool:
+        """ASU TES requires manual download from the ASU web interface."""
+        return False
+
     def source_name(self) -> str:
         """Return the source library identifier."""
         return "asu_tes"

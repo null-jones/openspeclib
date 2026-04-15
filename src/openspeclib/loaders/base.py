@@ -18,6 +18,15 @@ class BaseLoader(ABC):
     without holding everything in memory.
     """
 
+    @property
+    def supports_auto_download(self) -> bool:
+        """Whether this loader can download data automatically.
+
+        Returns ``True`` by default. Loaders that require manual data
+        placement should override this to return ``False``.
+        """
+        return True
+
     @abstractmethod
     def source_name(self) -> str:
         """Return the source library identifier (e.g. 'usgs_splib07')."""

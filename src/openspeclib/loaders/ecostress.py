@@ -9,11 +9,9 @@ Reference: https://speclib.jpl.nasa.gov
 
 import logging
 import re
-import zipfile
 from pathlib import Path
 from typing import Iterator
 
-import requests
 from tqdm import tqdm
 
 from openspeclib.loaders.base import BaseLoader
@@ -32,8 +30,6 @@ from openspeclib.models import (
 )
 
 logger = logging.getLogger(__name__)
-
-ECOSTRESS_DOWNLOAD_URL = "https://speclib.jpl.nasa.gov/downloads/ecostress"
 
 ECOSTRESS_CATEGORY_MAP: dict[str, MaterialCategory] = {
     "mineral": MaterialCategory.MINERAL,
@@ -208,35 +204,36 @@ def parse_ecostress_file(filepath: Path) -> SpectrumRecord:
 class EcostressLoader(BaseLoader):
     """Loader for the ECOSTRESS Spectral Library."""
 
+    @property
+    def supports_auto_download(self) -> bool:
+        """ECOSTRESS requires manual download from the JPL web portal."""
+        return False
+
     def source_name(self) -> str:
         """Return the source library identifier."""
         return "ecostress"
 
     def download(self, target_dir: Path) -> Path:
-        """Download and extract the ECOSTRESS library archive."""
+        """Prepare the ECOSTRESS data directory.
+
+        The ECOSTRESS download portal uses a JavaScript-based cart system
+        and does not provide a direct bulk download URL. Users must download
+        the data manually from https://speclib.jpl.nasa.gov/download and
+        place the spectrum files in the target directory.
+
+        Args:
+            target_dir: Directory where ECOSTRESS data should be placed.
+
+        Returns:
+            Path to the data directory.
+        """
         target_dir.mkdir(parents=True, exist_ok=True)
-        archive_path = target_dir / "ecostress.zip"
-
-        if not archive_path.exists():
-            logger.info("Downloading ECOSTRESS library...")
-            resp = requests.get(ECOSTRESS_DOWNLOAD_URL, stream=True, timeout=300)
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
-            with (
-                open(archive_path, "wb") as f,
-                tqdm(total=total, unit="B", unit_scale=True, desc="ECOSTRESS") as bar,
-            ):
-                for chunk in resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    bar.update(len(chunk))
-
-        extract_dir = target_dir / "ecostress"
-        if not extract_dir.exists():
-            logger.info("Extracting ECOSTRESS archive...")
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(extract_dir)
-
-        return extract_dir
+        logger.info(
+            "ECOSTRESS data should be placed in %s. "
+            "Download from: https://speclib.jpl.nasa.gov/download",
+            target_dir,
+        )
+        return target_dir
 
     def load(self, source_dir: Path) -> Iterator[SpectrumRecord]:
         """Parse all ECOSTRESS spectrum files in the source directory.

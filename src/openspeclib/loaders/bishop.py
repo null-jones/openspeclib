@@ -232,6 +232,11 @@ def parse_bishop_file(filepath: Path) -> SpectrumRecord:
 class BishopLoader(BaseLoader):
     """Loader for the Bishop Spectral Library."""
 
+    @property
+    def supports_auto_download(self) -> bool:
+        """Bishop library requires manual download from the SETI Institute."""
+        return False
+
     def source_name(self) -> str:
         """Return the source library identifier."""
         return "bishop"
