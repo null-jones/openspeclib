@@ -10,12 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
-from openspeclib import __version__
+from openspeclib import __version__, storage
 from openspeclib.models import (
     CatalogFile,
     CatalogRecord,
     CatalogStatistics,
-    LibraryChunkFile,
     SourceInfo,
     SpectrumRecord,
 )
@@ -31,27 +30,15 @@ def _write_chunk(
     source_name: str,
     category_label: str,
 ) -> None:
-    """Write a list of spectrum records to a library chunk file.
+    """Write a list of spectrum records to a Parquet library chunk file.
 
     Args:
         records: Spectrum records to include in the chunk.
-        output_path: Destination file path for the JSON chunk.
-        source_name: Source library identifier.
-        category_label: Material category or chunk label.
+        output_path: Destination Parquet file path.
+        source_name: Source library identifier (stored in footer metadata).
+        category_label: Material category or chunk label (stored in footer metadata).
     """
-    chunk = LibraryChunkFile(
-        openspeclib_version=__version__,
-        source=source_name,
-        category=category_label,
-        spectrum_count=len(records),
-        spectra=records,
-    )
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(
-        chunk.model_dump_json(indent=2),
-        encoding="utf-8",
-    )
-    logger.info("Wrote %d spectra to %s", len(records), output_path)
+    storage.write_chunk(records, output_path, source=source_name, category=category_label)
 
 
 def build_library(
@@ -97,8 +84,8 @@ def build_library(
             if len(buffers[cat]) >= chunk_size:
                 chunk_idx = chunk_counters[cat]
                 chunk_label = f"{cat}_chunk_{chunk_idx:03d}"
-                chunk_path = source_dir / f"{chunk_label}.json"
-                rel_path = f"spectra/{source_name}/{chunk_label}.json"
+                chunk_path = source_dir / f"{chunk_label}.parquet"
+                rel_path = f"spectra/{source_name}/{chunk_label}.parquet"
 
                 _write_chunk(buffers[cat], chunk_path, source_name, chunk_label)
 
@@ -121,8 +108,8 @@ def build_library(
                 # Small enough for a single file
                 chunk_label = cat
 
-            chunk_path = source_dir / f"{chunk_label}.json"
-            rel_path = f"spectra/{source_name}/{chunk_label}.json"
+            chunk_path = source_dir / f"{chunk_label}.parquet"
+            rel_path = f"spectra/{source_name}/{chunk_label}.parquet"
 
             _write_chunk(remaining, chunk_path, source_name, chunk_label)
 

@@ -120,9 +120,11 @@ The combiner reads all JSONL files from the processed directory and constructs t
 
 1. **Partition spectra** into chunk files by source and material category.
 2. **Enforce chunk size limits** — when a category exceeds the chunk size threshold (default: 5,000 spectra), records are distributed across multiple numbered chunk files.
-3. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference.
+3. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (the relative path of the `.parquet` chunk).
 4. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
-5. **Write output files** — `catalog.json`, chunk files under `spectra/`, and `VERSION`.
+5. **Write output files** — `catalog.json` (JSON), chunk files under `spectra/` as **Parquet (zstd-compressed)** with one row per spectrum, and `VERSION`.
+
+Chunk-level metadata (`openspeclib_version`, `source`, `category`, `spectrum_count`) is written into the Parquet file's footer key-value metadata. See `schemas/library.parquet-schema.md` for the full column reference.
 
 ## Stage 4: Validate
 
@@ -134,7 +136,9 @@ Validation comprises two layers:
 
 ### Schema Validation
 
-Each output file is validated against the corresponding JSON Schema (Draft 2020-12) to verify structural conformance, type correctness, and enum constraints.
+`catalog.json` is validated against `schemas/catalog.schema.json` (JSON Schema Draft 2020-12).
+
+Each Parquet chunk file is validated against the canonical Arrow schema (`openspeclib.storage.ARROW_SCHEMA`): column names, types, and nullability are compared against the spec, and any drift is reported. The footer must also carry the four required metadata keys (`openspeclib_version`, `source`, `category`, `spectrum_count`).
 
 ### Semantic Validation
 

@@ -150,14 +150,32 @@ jobs:
           tar -xzf openspeclib-${{ inputs.version }}.tar.gz -C ./speclib
           ```
 
-          Or use just the catalog for lightweight metadata queries:
+          Use just the catalog for lightweight metadata queries (JSON):
           ```python
           import json
           catalog = json.load(open("openspeclib-catalog-${{ inputs.version }}.json"))
           print(f"Total spectra: {catalog['statistics']['total_spectra']}")
           ```
 
-          See [docs/data-structure.md](docs/data-structure.md) for the full schema specification.
+          Library chunks are **Apache Parquet (zstd-compressed)** with one row per spectrum
+          and dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`).
+          Read them directly with pyarrow:
+          ```python
+          import pyarrow.parquet as pq
+          table = pq.read_table("speclib/spectra/usgs_splib07/mineral.parquet")
+          print(table.schema)
+          ```
+
+          Or query across chunks with DuckDB without loading anything into Python:
+          ```sql
+          SELECT id, "material.name"
+          FROM 'speclib/spectra/**/*.parquet'
+          WHERE "spectral_data.wavelength_min" < 0.4;
+          ```
+
+          See [docs/data-structure.md](docs/data-structure.md) and
+          [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the
+          full schema specification and column reference.
           NOTES
 
       - name: Create GitHub Release

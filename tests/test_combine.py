@@ -5,10 +5,10 @@ from pathlib import Path
 
 from openspeclib.combine import build_library
 from openspeclib.models import (
-    LibraryChunkFile,
     SourceInfo,
     SpectrumRecord,
 )
+from openspeclib.storage import read_chunk
 
 
 def _make_source_info(name: str) -> SourceInfo:
@@ -50,8 +50,9 @@ class TestBuildLibrary:
         chunk_file = catalog.spectra[0].chunk_file
         chunk_path = output_dir / chunk_file
         assert chunk_path.exists()
+        assert chunk_path.suffix == ".parquet"
 
-        chunk = LibraryChunkFile.model_validate_json(chunk_path.read_text())
+        chunk = read_chunk(chunk_path)
         assert chunk.spectrum_count == 1
         assert chunk.spectra[0].id == sample_spectrum.id
 

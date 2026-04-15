@@ -39,8 +39,9 @@ Download the latest release from [GitHub Releases](https://github.com/null-jones
 
 ```python
 import json
+import pyarrow.parquet as pq
 
-# Load the catalog (metadata index, no spectral arrays)
+# Load the catalog (JSON; metadata index, no spectral arrays)
 with open("catalog.json") as f:
     catalog = json.load(f)
 
@@ -51,12 +52,22 @@ print(f"Sources: {list(catalog['sources'].keys())}")
 olivine = [s for s in catalog["spectra"] if "olivine" in s["name"].lower()]
 print(f"Found {len(olivine)} olivine spectra")
 
-# Load full spectral data from the referenced chunk file
-with open(olivine[0]["chunk_file"]) as f:
-    chunk = json.load(f)
-    spectrum = next(s for s in chunk["spectra"] if s["id"] == olivine[0]["id"])
-    print(f"Wavelengths: {spectrum['spectral_data']['wavelengths'][:5]}...")
+# Chunk files are Parquet — load the referenced chunk and find the row
+table = pq.read_table(olivine[0]["chunk_file"])
+mask = [row_id == olivine[0]["id"] for row_id in table.column("id").to_pylist()]
+row = table.filter(mask).to_pylist()[0]
+print(f"Wavelengths: {row['spectral_data.wavelengths'][:5]}...")
 ```
+
+For ad-hoc analytics, query Parquet chunks directly with DuckDB without loading them into Python:
+
+```sql
+SELECT id, name, "material.formula"
+FROM 'spectra/usgs_splib07/mineral.parquet'
+WHERE "spectral_data.wavelength_min" < 0.4;
+```
+
+See [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the full column reference.
 
 ### Building the Library Locally
 
@@ -87,7 +98,7 @@ openspeclib validate ./library/
 The master library uses a two-tier architecture:
 
 - **Catalog** (`catalog.json`) — Complete metadata index for every spectrum. No spectral arrays. Small enough to load in memory for search and discovery.
-- **Library chunks** (`spectra/{source}/{category}.json`) — Full spectrum records including wavelength and value arrays, partitioned by source and material category.
+- **Library chunks** (`spectra/{source}/{category}.parquet`) — Full spectrum records including wavelength and value arrays, partitioned by source and material category. Stored as Apache Parquet (zstd-compressed) for fast columnar queries via DuckDB / Polars / pandas.
 
 Each spectrum record contains:
 
@@ -130,7 +141,7 @@ pytest tests/ -v
 # Lint
 ruff check src/ tests/
 
-# Regenerate JSON schemas from Pydantic models
+# Regenerate schemas (catalog/spectrum JSON Schemas + chunk Arrow schema dump)
 python scripts/generate_schemas.py
 ```
 

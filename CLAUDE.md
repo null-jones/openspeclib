@@ -2,16 +2,17 @@
 
 ## Project Overview
 
-OpenSpecLib is a Python toolkit that ingests spectral libraries (USGS Speclib 07, ECOSTRESS, RELAB, ASU TES, Bishop) into a unified JSON-based data structure, validates it, and packages it for release.
+OpenSpecLib is a Python toolkit that ingests spectral libraries (USGS Speclib 07, ECOSTRESS, RELAB, ASU TES, Bishop) into a unified data structure, validates it, and packages it for release. The catalog is JSON; library chunk files (full spectral data) are Apache Parquet (zstd-compressed) for columnar query and dramatic size reduction.
 
 ## Repository Structure
 
-- `src/openspeclib/models.py` — Pydantic models defining the data structure (single source of truth)
+- `src/openspeclib/models.py` — Pydantic models defining the in-memory data structure (single source of truth)
+- `src/openspeclib/storage.py` — Parquet chunk I/O (`ARROW_SCHEMA`, `write_chunk`, `read_chunk`, `validate_parquet_schema`)
 - `src/openspeclib/loaders/` — Per-source parsers (usgs.py, ecostress.py, relab.py, asu_tes.py, bishop.py)
-- `src/openspeclib/combine.py` — Merges sources into chunked master library
+- `src/openspeclib/combine.py` — Merges sources into chunked master library (Parquet chunks + JSON catalog)
 - `src/openspeclib/validate.py` — Schema + semantic validation
 - `src/openspeclib/cli.py` — Click CLI (download, ingest, combine, validate)
-- `schemas/` — JSON Schema files (generated from Pydantic models)
+- `schemas/` — `catalog.schema.json`, `spectrum.schema.json`, `library.arrow.schema.json` (generated), and `library.parquet-schema.md` (human-readable chunk reference)
 - `tests/` — pytest tests with fixture data in `tests/fixtures/`
 - `docs/` — Documentation (data-structure, pipeline, provenance, adding-sources)
 
@@ -75,4 +76,5 @@ python scripts/generate_schemas.py   # Regenerate JSON schemas
 - Loaders yield `SpectrumRecord` via generators for memory efficiency
 - Wavelengths are stored in native units (um, nm, cm-1) — never convert during ingest
 - Source-specific metadata goes in `additional_properties`, not new schema fields
+- All chunk file I/O goes through `openspeclib.storage` — never read or write Parquet chunks directly outside that module
 - All tests, formatting, and lint checks should pass before any changes are committed

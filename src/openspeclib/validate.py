@@ -13,9 +13,9 @@ from pathlib import Path
 
 import jsonschema
 
+from openspeclib import storage
 from openspeclib.models import (
     CatalogFile,
-    LibraryChunkFile,
     MaterialCategory,
     MeasurementTechnique,
     WavelengthUnit,
@@ -249,9 +249,15 @@ def _validate_chunk_files(
         if not chunk_path.exists():
             continue
 
+        # Schema validation against the canonical Arrow schema
+        schema_errors = storage.validate_parquet_schema(chunk_path)
+        for err in schema_errors:
+            result.errors.append(f"Chunk '{chunk_file}' schema: {err}")
+        if schema_errors:
+            continue
+
         try:
-            chunk_data = json.loads(chunk_path.read_text(encoding="utf-8"))
-            chunk = LibraryChunkFile.model_validate(chunk_data)
+            chunk = storage.read_chunk(chunk_path)
         except Exception as e:
             result.errors.append(f"Chunk '{chunk_file}' parse error: {e}")
             continue

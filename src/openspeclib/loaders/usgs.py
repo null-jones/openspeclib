@@ -5,6 +5,9 @@ directories (by material type). Each spectrum file contains a single
 column of reflectance values. Wavelength and bandpass axes are stored
 in separate shared files per spectrometer.
 
+The raw archive is mirrored on Hugging Face Datasets as a bit-identical
+copy of the upstream USGS ScienceBase release; see ``USGS_HF_REPO`` below.
+
 Reference: https://doi.org/10.5066/F7RR1WDJ
 """
 
@@ -14,7 +17,7 @@ import zipfile
 from pathlib import Path
 from typing import Iterator
 
-import requests
+from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 from openspeclib.loaders.base import BaseLoader
@@ -34,9 +37,12 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
-USGS_DOWNLOAD_URL = (
-    "https://www.sciencebase.gov/catalog/file/get/5807a2a2e4b0841e59e3a18d" "?f=usgs_splib07.zip"
-)
+# Raw archive is mirrored on Hugging Face Datasets. The file is the
+# upstream ScienceBase ZIP, uploaded unmodified so its SHA-256 matches
+# the original publication at https://doi.org/10.5066/F7RR1WDJ.
+USGS_HF_REPO = "null-jones/usgs_splib07"
+USGS_HF_FILENAME = "usgs_splib07.zip"
+USGS_HF_REVISION = "main"
 
 USGS_SOURCE = Source(
     library=SourceLibrary.USGS_SPLIB07,
@@ -287,43 +293,55 @@ class UsgsLoader(BaseLoader):
         return "usgs_splib07"
 
     def download(self, target_dir: Path) -> Path:
-        """Download and extract the USGS Speclib 07 archive."""
+        """Download and extract the USGS Speclib 07 archive.
+
+        Fetches the upstream ZIP from the Hugging Face dataset mirror at
+        ``USGS_HF_REPO`` and extracts it into ``target_dir``. If the
+        extracted directory already exists, the download and extraction
+        steps are skipped — safe to call repeatedly from cached CI runs.
+
+        Args:
+            target_dir: Directory to download and extract into.
+
+        Returns:
+            Path to the extracted USGS data directory.
+
+        Raises:
+            RuntimeError: If the downloaded file is not a valid ZIP archive.
+        """
         target_dir.mkdir(parents=True, exist_ok=True)
-        archive_path = target_dir / "usgs_splib07.zip"
-
-        if not archive_path.exists():
-            logger.info("Downloading USGS Speclib 07...")
-            resp = requests.get(USGS_DOWNLOAD_URL, stream=True, timeout=600)
-            resp.raise_for_status()
-
-            content_type = resp.headers.get("content-type", "")
-            if "text/html" in content_type:
-                raise RuntimeError(
-                    f"USGS download URL returned HTML instead of a ZIP archive. "
-                    f"The download URL may have changed: {USGS_DOWNLOAD_URL}"
-                )
-
-            total = int(resp.headers.get("content-length", 0))
-            with (
-                open(archive_path, "wb") as f,
-                tqdm(total=total, unit="B", unit_scale=True, desc="USGS Speclib 07") as bar,
-            ):
-                for chunk in resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    bar.update(len(chunk))
-
-            if not zipfile.is_zipfile(archive_path):
-                archive_path.unlink()
-                raise RuntimeError(
-                    f"Downloaded file is not a valid ZIP archive. "
-                    f"The download URL may have changed: {USGS_DOWNLOAD_URL}"
-                )
-
         extract_dir = target_dir / "usgs_splib07"
-        if not extract_dir.exists():
-            logger.info("Extracting USGS archive...")
-            with zipfile.ZipFile(archive_path, "r") as zf:
-                zf.extractall(extract_dir)
+
+        # Fast path: extraction already done (e.g. restored from CI cache).
+        if extract_dir.exists() and any(extract_dir.iterdir()):
+            logger.info("USGS data already extracted at %s", extract_dir)
+            return extract_dir
+
+        logger.info(
+            "Downloading USGS Speclib 07 from Hugging Face: %s (%s @ %s)",
+            USGS_HF_REPO,
+            USGS_HF_FILENAME,
+            USGS_HF_REVISION,
+        )
+        archive_path = Path(
+            hf_hub_download(
+                repo_id=USGS_HF_REPO,
+                filename=USGS_HF_FILENAME,
+                repo_type="dataset",
+                revision=USGS_HF_REVISION,
+                local_dir=str(target_dir),
+            )
+        )
+
+        if not zipfile.is_zipfile(archive_path):
+            raise RuntimeError(
+                f"File downloaded from {USGS_HF_REPO}/{USGS_HF_FILENAME} "
+                f"is not a valid ZIP archive."
+            )
+
+        logger.info("Extracting USGS archive to %s", extract_dir)
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            zf.extractall(extract_dir)
 
         return extract_dir
 

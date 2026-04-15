@@ -45,7 +45,7 @@ class TestValidateLibrary:
         )
 
         # Delete the chunk file
-        for chunk in (output_dir / "spectra").rglob("*.json"):
+        for chunk in (output_dir / "spectra").rglob("*.parquet"):
             chunk.unlink()
 
         result = validate_library(output_dir)
