@@ -39,7 +39,7 @@ def _get_loader(source: str) -> BaseLoader:
     import importlib
 
     module = importlib.import_module(module_path)
-    cls = getattr(module, class_name)
+    cls: type[BaseLoader] = getattr(module, class_name)
     return cls()
 
 
