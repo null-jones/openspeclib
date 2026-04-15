@@ -54,7 +54,7 @@ class ValidationResult:
         return "\n".join(lines)
 
 
-def validate_schema(data: dict, schema_name: str) -> list[str]:
+def validate_schema(data: dict[str, object], schema_name: str) -> list[str]:
     """Validate a dictionary against a JSON Schema file.
 
     Args:
