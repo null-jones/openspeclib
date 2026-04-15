@@ -1,0 +1,17 @@
+# Name: Olivine Fo91
+# Sample ID: DD-MDD-065
+# Type: Mineral
+# Origin: San Carlos, Arizona
+# Grain Size: 45-90 um
+# Description: San Carlos olivine, forsterite-rich
+0.300	0.050
+0.400	0.065
+0.500	0.080
+0.600	0.095
+0.700	0.100
+0.800	0.110
+1.000	0.115
+1.200	0.090
+1.500	0.070
+2.000	0.060
+2.500	0.055

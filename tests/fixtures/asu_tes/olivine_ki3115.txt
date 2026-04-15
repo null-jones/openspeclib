@@ -1,0 +1,18 @@
+# Name: Olivine KI-3115
+# Sample ID: KI-3115
+# Type: Mineral
+# Formula: (Mg,Fe)2SiO4
+# Origin: Kiglapait Intrusion
+# Description: Forsterite-rich olivine, thermal emission
+2000	0.970
+1800	0.975
+1600	0.960
+1400	0.945
+1200	0.910
+1100	0.850
+1000	0.600
+900	0.500
+800	0.750
+600	0.930
+400	0.950
+220	0.960

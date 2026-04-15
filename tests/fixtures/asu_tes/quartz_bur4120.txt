@@ -1,0 +1,17 @@
+# Name: Quartz BUR-4120
+# Sample ID: BUR-4120
+# Type: Mineral
+# Formula: SiO2
+# Description: Quartz, crystalline, thermal emission
+2000	0.950
+1800	0.960
+1600	0.940
+1400	0.930
+1200	0.750
+1100	0.400
+1000	0.350
+900	0.700
+800	0.920
+600	0.940
+400	0.960
+220	0.970

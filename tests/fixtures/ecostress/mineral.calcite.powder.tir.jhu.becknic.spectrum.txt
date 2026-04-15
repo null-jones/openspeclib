@@ -1,0 +1,28 @@
+Name: Calcite WS272
+Type:ite
+Class: Mineral
+SubClass: Carbonate
+ParticleSize: 75-250 um
+SampleNo: WS272
+Owner: JHU
+WavelengthRange: TIR
+Origin: Ward's Scientific
+Description: Calcite, powdered, carbonate mineral
+Measurement: Directional Hemispherical Reflectance
+FirstColumn: X
+SecondColumn: Y
+XUnits: Micrometers
+YUnits: Reflectance
+FirstXValue: 2.080
+LastXValue: 14.000
+NumberOfXValues: 10
+2.080	0.970
+3.000	0.950
+4.000	0.890
+5.000	0.920
+6.000	0.930
+7.000	0.910
+8.000	0.860
+9.000	0.780
+11.400	0.150
+14.000	0.720

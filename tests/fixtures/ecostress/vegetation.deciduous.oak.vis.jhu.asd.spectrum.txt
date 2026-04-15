@@ -1,0 +1,26 @@
+Name: Red Oak Leaf
+Type: Vegetation
+Class: Vegetation
+SubClass: Deciduous
+ParticleSize: N/A
+SampleNo: OAK-001
+Owner: JHU
+WavelengthRange: VNIR
+Origin: Maryland, USA
+Description: Fresh red oak leaf, adaxial surface
+Measurement: Directional Hemispherical Reflectance
+FirstColumn: X
+SecondColumn: Y
+XUnits: Micrometers
+YUnits: Reflectance
+FirstXValue: 0.350
+LastXValue: 2.500
+NumberOfXValues: 8
+0.350	0.030
+0.450	0.040
+0.550	0.120
+0.670	0.050
+0.800	0.450
+1.000	0.420
+1.650	0.280
+2.500	0.180

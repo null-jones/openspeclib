@@ -1,0 +1,152 @@
+name: Build and Release Spectral Library
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (semver, e.g., 1.0.0)"
+        required: true
+        type: string
+      sources:
+        description: "Comma-separated sources to include (usgs,ecostress,relab,asu_tes,bishop or all)"
+        required: false
+        default: "all"
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install openspeclib
+        run: pip install -e ".[build,dev]"
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Determine sources
+        id: sources
+        run: |
+          if [ "${{ inputs.sources }}" = "all" ]; then
+            echo "list=usgs,ecostress,relab,asu_tes,bishop" >> "$GITHUB_OUTPUT"
+          else
+            echo "list=${{ inputs.sources }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download source libraries
+        run: |
+          IFS=',' read -ra SOURCES <<< "${{ steps.sources.outputs.list }}"
+          for source in "${SOURCES[@]}"; do
+            source=$(echo "$source" | xargs)
+            echo "::group::Downloading $source"
+            openspeclib download --source "$source" --target "./raw/$source"
+            echo "::endgroup::"
+          done
+
+      - name: Ingest source libraries
+        run: |
+          mkdir -p processed
+          IFS=',' read -ra SOURCES <<< "${{ steps.sources.outputs.list }}"
+          for source in "${SOURCES[@]}"; do
+            source=$(echo "$source" | xargs)
+            echo "::group::Ingesting $source"
+            openspeclib ingest --source "$source" --input "./raw/$source" --output ./processed/
+            echo "::endgroup::"
+          done
+
+      - name: Combine into master library
+        run: openspeclib combine --input ./processed/ --output ./library/
+
+      - name: Validate library
+        run: openspeclib validate ./library/
+
+      - name: Package release artifacts
+        run: |
+          # Full library archive
+          cd library && tar -czf ../openspeclib-${{ inputs.version }}.tar.gz . && cd ..
+
+          # Catalog-only package for lightweight use
+          cp library/catalog.json openspeclib-catalog-${{ inputs.version }}.json
+
+          # Compute checksums
+          sha256sum openspeclib-${{ inputs.version }}.tar.gz > checksums.txt
+          sha256sum openspeclib-catalog-${{ inputs.version }}.json >> checksums.txt
+
+      - name: Generate release notes
+        id: notes
+        run: |
+          TOTAL=$(python -c "import json; c=json.load(open('library/catalog.json')); print(c['statistics']['total_spectra'])")
+          SOURCES_LIST=$(python -c "
+          import json
+          c = json.load(open('library/catalog.json'))
+          for name, info in c['sources'].items():
+              print(f'- **{info[\"name\"]}** (v{info[\"version\"]}): {info[\"spectrum_count\"]} spectra')
+          ")
+
+          cat << 'NOTES' > release_notes.md
+          ## OpenSpecLib v${{ inputs.version }}
+
+          Amalgamated spectral library containing **${TOTAL} spectra** from the following sources:
+
+          ${SOURCES_LIST}
+
+          ### Artifacts
+
+          - `openspeclib-${{ inputs.version }}.tar.gz` — Full library (catalog + all spectral data chunks)
+          - `openspeclib-catalog-${{ inputs.version }}.json` — Catalog only (metadata index, no spectral arrays)
+          - `checksums.txt` — SHA-256 checksums
+
+          ### Usage
+
+          Download and extract the full library:
+          ```bash
+          tar -xzf openspeclib-${{ inputs.version }}.tar.gz -C ./speclib
+          ```
+
+          Or use just the catalog for lightweight metadata queries:
+          ```python
+          import json
+          catalog = json.load(open("openspeclib-catalog-${{ inputs.version }}.json"))
+          print(f"Total spectra: {catalog['statistics']['total_spectra']}")
+          ```
+
+          See [docs/data-structure.md](docs/data-structure.md) for the full schema specification.
+          NOTES
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: OpenSpecLib v${{ inputs.version }}
+          body_path: release_notes.md
+          files: |
+            openspeclib-${{ inputs.version }}.tar.gz
+            openspeclib-catalog-${{ inputs.version }}.json
+            checksums.txt
+          draft: false
+          prerelease: false
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -v
+      - run: ruff check src/ tests/

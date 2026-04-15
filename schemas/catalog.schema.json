@@ -1,0 +1,601 @@
+{
+  "$defs": {
+    "CatalogRecord": {
+      "description": "A spectrum's metadata for the catalog index \u2014 no raw spectral arrays.",
+      "properties": {
+        "id": {
+          "description": "Globally unique identifier.",
+          "title": "Id",
+          "type": "string"
+        },
+        "name": {
+          "description": "Human-readable display name.",
+          "title": "Name",
+          "type": "string"
+        },
+        "chunk_file": {
+          "description": "Relative path to the library chunk file containing full spectral data.",
+          "title": "Chunk File",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/Source",
+          "description": "Provenance information."
+        },
+        "material": {
+          "$ref": "#/$defs/Material",
+          "description": "Material classification."
+        },
+        "sample": {
+          "$ref": "#/$defs/Sample",
+          "description": "Sample information."
+        },
+        "measurement": {
+          "$ref": "#/$defs/Measurement",
+          "description": "Measurement conditions."
+        },
+        "spectral_data": {
+          "$ref": "#/$defs/SpectralDataSummary",
+          "description": "Spectral data summary (no arrays)."
+        },
+        "additional_properties": {
+          "additionalProperties": true,
+          "description": "Source-specific metadata.",
+          "title": "Additional Properties",
+          "type": "object"
+        },
+        "quality": {
+          "$ref": "#/$defs/Quality",
+          "description": "Data quality indicators."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "chunk_file",
+        "source",
+        "material",
+        "sample",
+        "measurement",
+        "spectral_data"
+      ],
+      "title": "CatalogRecord",
+      "type": "object"
+    },
+    "CatalogStatistics": {
+      "description": "Aggregate statistics for the full library.",
+      "properties": {
+        "total_spectra": {
+          "description": "Total number of spectra in the library.",
+          "minimum": 0,
+          "title": "Total Spectra",
+          "type": "integer"
+        },
+        "categories": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Spectrum count per material category.",
+          "title": "Categories",
+          "type": "object"
+        }
+      },
+      "required": [
+        "total_spectra"
+      ],
+      "title": "CatalogStatistics",
+      "type": "object"
+    },
+    "Material": {
+      "description": "Classification of the material whose spectrum was measured.",
+      "properties": {
+        "name": {
+          "description": "Material name (e.g. Olivine, Quartz, Oak leaf).",
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "$ref": "#/$defs/MaterialCategory",
+          "description": "Top-level material category."
+        },
+        "subcategory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Source-specific subcategory (e.g. ECOSTRESS SubClass, mineral group).",
+          "title": "Subcategory"
+        },
+        "formula": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Chemical formula where applicable.",
+          "title": "Formula"
+        },
+        "keywords": {
+          "description": "Searchable terms for discovery.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Keywords",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name",
+        "category"
+      ],
+      "title": "Material",
+      "type": "object"
+    },
+    "MaterialCategory": {
+      "description": "Controlled vocabulary for material classification.",
+      "enum": [
+        "mineral",
+        "rock",
+        "soil",
+        "vegetation",
+        "npv",
+        "water",
+        "snow_ice",
+        "man_made",
+        "meteorite",
+        "lunar",
+        "organic_compound",
+        "mixture",
+        "other"
+      ],
+      "title": "MaterialCategory",
+      "type": "string"
+    },
+    "Measurement": {
+      "description": "Instrument and conditions under which the spectrum was acquired.",
+      "properties": {
+        "instrument": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Instrument name and model.",
+          "title": "Instrument"
+        },
+        "instrument_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Category of instrument (e.g. laboratory_spectrometer, ftir).",
+          "title": "Instrument Type"
+        },
+        "laboratory": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Laboratory or facility where the measurement was performed.",
+          "title": "Laboratory"
+        },
+        "technique": {
+          "$ref": "#/$defs/MeasurementTechnique",
+          "description": "Measurement technique (reflectance, emissivity, absorbance, transmittance)."
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Measurement geometry (e.g. biconical, hemispherical).",
+          "title": "Geometry"
+        },
+        "date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Date the measurement was acquired (ISO 8601).",
+          "title": "Date"
+        }
+      },
+      "required": [
+        "technique"
+      ],
+      "title": "Measurement",
+      "type": "object"
+    },
+    "MeasurementTechnique": {
+      "description": "Type of spectral measurement.",
+      "enum": [
+        "reflectance",
+        "emissivity",
+        "absorbance",
+        "transmittance"
+      ],
+      "title": "MeasurementTechnique",
+      "type": "string"
+    },
+    "Quality": {
+      "description": "Data quality indicators for a spectrum.",
+      "properties": {
+        "has_bad_bands": {
+          "default": false,
+          "description": "Whether any bad or invalid bands are present.",
+          "title": "Has Bad Bands",
+          "type": "boolean"
+        },
+        "bad_band_count": {
+          "default": 0,
+          "description": "Number of invalid data points.",
+          "minimum": 0,
+          "title": "Bad Band Count",
+          "type": "integer"
+        },
+        "coverage_fraction": {
+          "default": 1.0,
+          "description": "Fraction of data points that are valid (0.0\u20131.0).",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Coverage Fraction",
+          "type": "number"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Additional quality notes.",
+          "title": "Notes"
+        }
+      },
+      "title": "Quality",
+      "type": "object"
+    },
+    "Sample": {
+      "description": "Information about the physical sample that was measured.",
+      "properties": {
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Sample identifier from the source.",
+          "title": "Id"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Free-text sample description.",
+          "title": "Description"
+        },
+        "particle_size": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Particle size or size range as reported.",
+          "title": "Particle Size"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Geographic or geological origin of the sample.",
+          "title": "Origin"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Institution or individual owning the sample.",
+          "title": "Owner"
+        },
+        "collection_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Date the sample was collected (ISO 8601).",
+          "title": "Collection Date"
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Description of sample preparation procedures.",
+          "title": "Preparation"
+        }
+      },
+      "title": "Sample",
+      "type": "object"
+    },
+    "Source": {
+      "description": "Provenance information linking a spectrum to its origin library.",
+      "properties": {
+        "library": {
+          "$ref": "#/$defs/SourceLibrary",
+          "description": "Source spectral library identifier."
+        },
+        "library_version": {
+          "description": "Version of the source library.",
+          "title": "Library Version",
+          "type": "string"
+        },
+        "original_id": {
+          "description": "Identifier used in the source library.",
+          "title": "Original Id",
+          "type": "string"
+        },
+        "filename": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Original filename in the source archive.",
+          "title": "Filename"
+        },
+        "url": {
+          "description": "DOI or URL for the source library.",
+          "title": "Url",
+          "type": "string"
+        },
+        "license": {
+          "description": "License governing the source data.",
+          "title": "License",
+          "type": "string"
+        },
+        "citation": {
+          "description": "Recommended citation string.",
+          "title": "Citation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "library",
+        "library_version",
+        "original_id",
+        "url",
+        "license",
+        "citation"
+      ],
+      "title": "Source",
+      "type": "object"
+    },
+    "SourceInfo": {
+      "description": "Metadata about a source library included in the catalog.",
+      "properties": {
+        "name": {
+          "description": "Full name of the source library.",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version of the source library.",
+          "title": "Version",
+          "type": "string"
+        },
+        "url": {
+          "description": "DOI or URL for the source library.",
+          "title": "Url",
+          "type": "string"
+        },
+        "license": {
+          "description": "License governing the source data.",
+          "title": "License",
+          "type": "string"
+        },
+        "citation": {
+          "description": "Recommended citation string.",
+          "title": "Citation",
+          "type": "string"
+        },
+        "spectrum_count": {
+          "description": "Number of spectra from this source.",
+          "minimum": 0,
+          "title": "Spectrum Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "url",
+        "license",
+        "citation",
+        "spectrum_count"
+      ],
+      "title": "SourceInfo",
+      "type": "object"
+    },
+    "SourceLibrary": {
+      "description": "Supported source spectral libraries.",
+      "enum": [
+        "usgs_splib07",
+        "ecostress",
+        "relab",
+        "asu_tes",
+        "bishop"
+      ],
+      "title": "SourceLibrary",
+      "type": "string"
+    },
+    "SpectralDataSummary": {
+      "description": "Spectral data metadata for catalog entries (no raw arrays).",
+      "properties": {
+        "type": {
+          "$ref": "#/$defs/MeasurementTechnique",
+          "description": "Type of spectral values."
+        },
+        "wavelength_unit": {
+          "$ref": "#/$defs/WavelengthUnit",
+          "description": "Unit of the wavelength axis."
+        },
+        "wavelength_min": {
+          "description": "Minimum value on the wavelength axis.",
+          "title": "Wavelength Min",
+          "type": "number"
+        },
+        "wavelength_max": {
+          "description": "Maximum value on the wavelength axis.",
+          "title": "Wavelength Max",
+          "type": "number"
+        },
+        "num_points": {
+          "description": "Number of spectral data points.",
+          "minimum": 1,
+          "title": "Num Points",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "type",
+        "wavelength_unit",
+        "wavelength_min",
+        "wavelength_max",
+        "num_points"
+      ],
+      "title": "SpectralDataSummary",
+      "type": "object"
+    },
+    "WavelengthUnit": {
+      "description": "Wavelength or wavenumber units.",
+      "enum": [
+        "um",
+        "nm",
+        "cm-1"
+      ],
+      "title": "WavelengthUnit",
+      "type": "string"
+    }
+  },
+  "description": "Top-level structure of the catalog.json file.",
+  "properties": {
+    "openspeclib_version": {
+      "description": "Version of the OpenSpecLib schema.",
+      "title": "Openspeclib Version",
+      "type": "string"
+    },
+    "generated_at": {
+      "description": "Timestamp when the catalog was generated.",
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/SourceInfo"
+      },
+      "description": "Metadata for each source library included.",
+      "title": "Sources",
+      "type": "object"
+    },
+    "statistics": {
+      "$ref": "#/$defs/CatalogStatistics",
+      "description": "Aggregate library statistics."
+    },
+    "spectra": {
+      "description": "Catalog entries for all spectra.",
+      "items": {
+        "$ref": "#/$defs/CatalogRecord"
+      },
+      "title": "Spectra",
+      "type": "array"
+    }
+  },
+  "required": [
+    "openspeclib_version",
+    "generated_at",
+    "sources",
+    "statistics",
+    "spectra"
+  ],
+  "title": "CatalogFile",
+  "type": "object"
+}

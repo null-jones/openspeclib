@@ -1,0 +1,84 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "openspeclib"
+version = "0.1.0"
+description = "Open-source amalgamated spectral library and processing toolkit"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "Ellie Jones" }]
+keywords = ["spectral-library", "spectroscopy", "remote-sensing", "USGS", "ECOSTRESS"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+dependencies = [
+    "pydantic>=2.0",
+    "jsonschema>=4.20",
+    "click>=8.0",
+    "requests>=2.31",
+    "tqdm>=4.65",
+]
+
+[project.optional-dependencies]
+build = []
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.4",
+    "mypy>=1.8",
+    "black>=24.0",
+]
+
+[project.scripts]
+openspeclib = "openspeclib.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/openspeclib"]
+
+[tool.black]
+line-length = 100
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",       # pycodestyle errors
+    "F",       # pyflakes
+    "I",       # isort
+    "W",       # pycodestyle warnings
+    "D",       # pydocstyle (docstring conventions)
+    "ANN",     # flake8-annotations (type hints)
+]
+ignore = [
+    "ANN401",  # dynamically typed expressions (typing.Any) are disallowed
+    "D100",    # missing docstring in public module (module docstrings already present)
+    "D104",    # missing docstring in public package
+    "D107",    # missing docstring in __init__
+    "D203",    # one-blank-line-before-class (conflicts with D211)
+    "D213",    # multi-line-summary-second-line (conflicts with D212)
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["D", "ANN"]
+"scripts/**/*.py" = ["D", "ANN"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+strict = true

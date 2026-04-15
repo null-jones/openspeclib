@@ -1,0 +1,16 @@
+# Name: Calcite Iceland Spar
+# Type: Carbonate
+# Formula: CaCO3
+# Origin: Iceland
+# Description: Optical quality calcite, Iceland spar
+0.35	0.940
+0.50	0.950
+0.80	0.955
+1.00	0.960
+1.50	0.950
+2.00	0.940
+2.30	0.700
+2.50	0.880
+3.00	0.500
+3.50	0.850
+4.00	0.820
