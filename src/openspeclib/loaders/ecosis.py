@@ -278,7 +278,7 @@ class EcosisLoader(BaseLoader):
         Yields:
             SpectrumRecord for each valid spectrum.
         """
-        json_files = sorted(source_dir.glob("*.json"))
+        json_files = sorted(source_dir.rglob("*.json"))
         if not json_files:
             logger.warning("No EcoSIS JSON files found in %s", source_dir)
             return
