@@ -49,7 +49,10 @@ function SensorDetails({ sensor }: { sensor: SensorDefinition }) {
         </svg>
       </button>
 
-      <p className="mt-1 text-[11px] text-gray-500">{sensor.description}</p>
+      <p className="mt-1 text-[11px] text-gray-500">
+        {sensor.description}
+        <span className="ml-1 text-[10px] text-gray-400">({sensor.group})</span>
+      </p>
 
       <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
         <span><strong className="text-gray-700">{bands.length}</strong> bands</span>
@@ -76,6 +79,18 @@ function SensorDetails({ sensor }: { sensor: SensorDefinition }) {
           <p className="mt-1.5 text-[10px] text-gray-400">
             Avg FWHM: {avgFwhm.toFixed(1)} nm
           </p>
+          <a
+            href={sensor.sourceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-1.5 inline-flex items-center gap-1 text-[10px] text-indigo-500 hover:text-indigo-700 transition-colors"
+          >
+            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            {sensor.source}
+          </a>
         </div>
       )}
     </div>
