@@ -15,6 +15,7 @@ Reference: https://ecosis.org
 
 import json
 import logging
+import math
 import time
 import urllib.error
 import urllib.request
@@ -175,11 +176,14 @@ def _parse_datapoints(
     for key, val in datapoints.items():
         try:
             wl = float(key)
-        except ValueError:
+        except (ValueError, TypeError):
             continue
         try:
             v = float(val)
         except (ValueError, TypeError):
+            continue
+        # Skip NaN, Inf, and other non-finite values
+        if not (math.isfinite(wl) and math.isfinite(v)):
             continue
         pairs.append((wl, v))
 
