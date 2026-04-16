@@ -208,6 +208,64 @@ def _read_single_column(filepath: Path) -> list[float]:
     return values
 
 
+def _library_prefix(filename: str) -> str:
+    """Return the library prefix (first underscore-delimited token) of a filename.
+
+    Args:
+        filename: Spectrum or axis filename (basename, not full path).
+
+    Returns:
+        The leading token (e.g. ``"splib07a"``), or the full stem if no
+        underscore is present.
+    """
+    return Path(filename).stem.split("_", 1)[0]
+
+
+def _find_axis_file(
+    spectrum_path: Path,
+    source_dir: Path,
+    glob_patterns: tuple[str, ...],
+    family: str,
+) -> Path | None:
+    """Locate an axis file (wavelength or bandpass) for a spectrum.
+
+    Matches are ranked by (1) same library prefix as the spectrum
+    (e.g. both ``splib07a_``), then (2) any file whose stem contains the
+    family token as a standalone underscore-delimited segment. The
+    prefix preference is what keeps an ``splib07a`` spectrum from
+    binding to an ``splib07b`` axis — an rglob-order hazard that
+    silently truncated ingest on Linux filesystems.
+
+    Args:
+        spectrum_path: Path to the spectrum file whose axis is needed.
+        source_dir: Root of the USGS data directory to search.
+        glob_patterns: Filename glob patterns to enumerate candidates
+            (e.g. ``("*[Ww]avelength*",)`` or
+            ``("*[Bb]andpass*", "*[Ff]whm*")``).
+        family: Lowercased family token to match inside the axis
+            filename (e.g. ``"asd"``, ``"asdfr"``).
+
+    Returns:
+        The best-ranked matching axis file, or ``None`` if none found.
+    """
+    prefix = _library_prefix(spectrum_path.name)
+    candidates: list[Path] = []
+    for pattern in glob_patterns:
+        candidates.extend(source_dir.rglob(pattern))
+
+    preferred: Path | None = None
+    fallback: Path | None = None
+    for axis_file in candidates:
+        tokens = axis_file.stem.lower().split("_")
+        if family not in tokens:
+            continue
+        if axis_file.name.startswith(f"{prefix}_") and preferred is None:
+            preferred = axis_file
+        elif fallback is None:
+            fallback = axis_file
+    return preferred or fallback
+
+
 def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     """Find the wavelength file corresponding to a spectrum file.
 
@@ -228,11 +286,7 @@ def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     family = _match_family(spectrometer, _WAVELENGTH_FAMILIES)
     if family is None:
         return None
-    for wl_file in source_dir.rglob("*[Ww]avelength*"):
-        tokens = wl_file.stem.lower().split("_")
-        if family in tokens:
-            return wl_file
-    return None
+    return _find_axis_file(spectrum_path, source_dir, ("*[Ww]avelength*",), family)
 
 
 def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
@@ -253,15 +307,7 @@ def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     family = _match_family(spectrometer, _BANDPASS_FAMILIES)
     if family is None:
         return None
-    for bp_file in source_dir.rglob("*[Bb]andpass*"):
-        tokens = bp_file.stem.lower().split("_")
-        if family in tokens:
-            return bp_file
-    for bp_file in source_dir.rglob("*[Ff]whm*"):
-        tokens = bp_file.stem.lower().split("_")
-        if family in tokens:
-            return bp_file
-    return None
+    return _find_axis_file(spectrum_path, source_dir, ("*[Bb]andpass*", "*[Ff]whm*"), family)
 
 
 def parse_usgs_file(
@@ -437,6 +483,12 @@ class UsgsLoader(BaseLoader):
         wl_cache: dict[str, list[float]] = {}
         bp_cache: dict[str, list[float] | None] = {}
 
+        # Outcome tallies per spectrometer so the final summary makes silent
+        # drops visible in CI logs even when tqdm reshuffles stderr output.
+        skipped_no_wl: dict[str, int] = {}
+        parsed: dict[str, int] = {}
+        parse_errors: dict[str, int] = {}
+
         for filepath in tqdm(spectrum_files, desc="Processing USGS"):
             spectrometer = _detect_spectrometer(filepath.name)
 
@@ -445,9 +497,15 @@ class UsgsLoader(BaseLoader):
                 wl_file = _find_wavelength_file(filepath, source_dir)
                 if wl_file:
                     wl_cache[spectrometer] = _read_single_column(wl_file)
+                    logger.info(
+                        "Using wavelength file %s for spectrometer %s (%d points)",
+                        wl_file.name,
+                        spectrometer,
+                        len(wl_cache[spectrometer]),
+                    )
                 else:
                     logger.warning(
-                        "No wavelength file found for spectrometer %s, skipping %s",
+                        "No wavelength file found for spectrometer %s (e.g. %s)",
                         spectrometer,
                         filepath.name,
                     )
@@ -458,9 +516,27 @@ class UsgsLoader(BaseLoader):
 
             wavelengths = wl_cache[spectrometer]
             if not wavelengths:
+                skipped_no_wl[spectrometer] = skipped_no_wl.get(spectrometer, 0) + 1
                 continue
 
             try:
                 yield parse_usgs_file(filepath, wavelengths, bp_cache[spectrometer], source_dir)
+                parsed[spectrometer] = parsed.get(spectrometer, 0) + 1
             except Exception:
+                parse_errors[spectrometer] = parse_errors.get(spectrometer, 0) + 1
                 logger.warning("Failed to parse %s", filepath, exc_info=True)
+
+        total_parsed = sum(parsed.values())
+        total_skipped = sum(skipped_no_wl.values())
+        total_errors = sum(parse_errors.values())
+        logger.info(
+            "USGS ingest summary: parsed=%d, skipped_no_wavelength=%d, parse_errors=%d",
+            total_parsed,
+            total_skipped,
+            total_errors,
+        )
+        if skipped_no_wl:
+            logger.warning(
+                "Spectrometers with missing wavelength axis (dropped): %s",
+                ", ".join(f"{spec}×{n}" for spec, n in sorted(skipped_no_wl.items())),
+            )
