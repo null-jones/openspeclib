@@ -33,11 +33,15 @@ export async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
 
   conn = await db.connect();
 
-  // Register each parquet source as a view
-  for (const source of SOURCES) {
-    const url = getParquetUrl(source);
-    await conn.query(`CREATE VIEW ${source} AS SELECT * FROM '${url}'`);
-  }
+  // Register each parquet source as a view. Each `CREATE VIEW` fetches the
+  // parquet footer to resolve the schema, so running them in parallel shaves
+  // off the serialized Range-request latency (~one RTT per source).
+  await Promise.all(
+    SOURCES.map((source) => {
+      const url = getParquetUrl(source);
+      return conn!.query(`CREATE VIEW ${source} AS SELECT * FROM '${url}'`);
+    }),
+  );
 
   return conn;
 }

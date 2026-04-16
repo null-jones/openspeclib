@@ -198,13 +198,22 @@ export default function Header() {
             <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded font-mono">
               v{OPENSPECLIB_VERSION}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 flex items-center gap-1.5">
               {state.catalogLoaded
                 ? `${state.resultCount.toLocaleString()} spectra`
-                : 'Loading...'}
-              {state.duckdbReady && (
-                <span className="ml-1.5 text-emerald-400" title="DuckDB ready">
-                  &bull; Ready
+                : 'Loading catalog...'}
+              {state.duckdbReady ? (
+                <span className="inline-flex items-center gap-1 text-emerald-400" title="DuckDB ready">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  Ready
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-amber-400" title="Initializing DuckDB query engine">
+                  <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+                  </svg>
+                  Initializing query engine
                 </span>
               )}
             </span>
