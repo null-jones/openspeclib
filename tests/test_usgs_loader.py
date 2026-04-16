@@ -1,11 +1,13 @@
 """Tests for the USGS Spectral Library loader."""
 
+import shutil
 from pathlib import Path
 
 from openspeclib.loaders.usgs import (
     UsgsLoader,
     _classify_from_path,
     _detect_spectrometer,
+    _find_wavelength_file,
     _parse_name_from_filename,
     _read_single_column,
     parse_usgs_file,
@@ -97,3 +99,44 @@ class TestUsgsLoader:
         categories = {r.material.category for r in records}
         assert MaterialCategory.MINERAL in categories
         assert MaterialCategory.ROCK in categories
+
+    def test_wavelength_lookup_ignores_companion_gif(self, tmp_path: Path) -> None:
+        """Regression: the USGS archive ships GIF plots next to axis files.
+
+        ``GIFplots/splib07a_Wavelengths_ASD_*.gif`` shares the splib07a
+        prefix and family token with the real ``.txt`` axis, so a glob
+        that did not constrain the extension would pick the GIF first on
+        Linux filesystems where ``rglob`` walks ``GIFplots/`` ahead of
+        ``ASCIIdata/``. Reading the binary as ASCII silently truncated
+        spectra to 0 or 1 "points" in the v0.0.2 release.
+
+        Only the GIF is present here; if the glob allowed non-``.txt``
+        files it would be returned and the binary would be parsed as an
+        axis. The fix scopes the glob to ``.txt``, so no match is found.
+        """
+        gif_dir = tmp_path / "GIFplots"
+        gif_dir.mkdir()
+        gif_path = gif_dir / WAVELENGTHS_FILE.name.replace(".txt", ".gif")
+        gif_path.write_bytes(b"GIF89a\x00\x00not-a-wavelength-axis\x00")
+
+        spectrum = tmp_path / "splib07a_Olivine_GDS70_ASDFRa_AREF.txt"
+        shutil.copy(OLIVINE_FILE, spectrum)
+
+        assert _find_wavelength_file(spectrum, tmp_path) is None
+
+    def test_wavelength_lookup_prefers_txt_over_gif(self, tmp_path: Path) -> None:
+        """The real ``.txt`` axis wins when a GIF companion exists."""
+        ascii_dir = tmp_path / "ASCIIdata"
+        ascii_dir.mkdir()
+        shutil.copy(WAVELENGTHS_FILE, ascii_dir / WAVELENGTHS_FILE.name)
+
+        gif_dir = tmp_path / "GIFplots"
+        gif_dir.mkdir()
+        (gif_dir / WAVELENGTHS_FILE.name.replace(".txt", ".gif")).write_bytes(b"GIF89a")
+
+        spectrum = ascii_dir / "splib07a_Olivine_GDS70_ASDFRa_AREF.txt"
+        shutil.copy(OLIVINE_FILE, spectrum)
+
+        resolved = _find_wavelength_file(spectrum, tmp_path)
+        assert resolved is not None
+        assert resolved.suffix == ".txt"

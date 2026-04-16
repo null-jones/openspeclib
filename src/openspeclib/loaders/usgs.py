@@ -275,6 +275,12 @@ def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     as an underscore-delimited token, and all sub-family spectrometers
     (e.g. ``ASDFRa``, ``ASDHRb``, ``ASDNGc``) share the same axis.
 
+    The glob is restricted to ``.txt`` to skip ``GIFplots/`` companion
+    images (``splib07a_Wavelengths_*.gif``) which otherwise share the
+    same prefix + family tokens and — with ``rglob`` ordering that is
+    filesystem-dependent — can be picked ahead of the real axis file on
+    Linux, silently collapsing spectra to a single garbage point.
+
     Args:
         spectrum_path: Path to the spectrum file.
         source_dir: Root of the USGS data directory to search.
@@ -286,7 +292,7 @@ def _find_wavelength_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     family = _match_family(spectrometer, _WAVELENGTH_FAMILIES)
     if family is None:
         return None
-    return _find_axis_file(spectrum_path, source_dir, ("*[Ww]avelength*",), family)
+    return _find_axis_file(spectrum_path, source_dir, ("*[Ww]avelength*.txt",), family)
 
 
 def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
@@ -294,7 +300,8 @@ def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
 
     Unlike wavelengths, each ASD sub-family (``ASDFR``, ``ASDHR``,
     ``ASDNG``) has its own FWHM file at a different native resolution,
-    so this function preserves that distinction.
+    so this function preserves that distinction. The glob is restricted
+    to ``.txt`` for the same reason as :func:`_find_wavelength_file`.
 
     Args:
         spectrum_path: Path to the spectrum file.
@@ -307,7 +314,9 @@ def _find_bandpass_file(spectrum_path: Path, source_dir: Path) -> Path | None:
     family = _match_family(spectrometer, _BANDPASS_FAMILIES)
     if family is None:
         return None
-    return _find_axis_file(spectrum_path, source_dir, ("*[Bb]andpass*", "*[Ff]whm*"), family)
+    return _find_axis_file(
+        spectrum_path, source_dir, ("*[Bb]andpass*.txt", "*[Ff]whm*.txt"), family
+    )
 
 
 def parse_usgs_file(
