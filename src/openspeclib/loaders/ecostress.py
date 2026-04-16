@@ -4,14 +4,19 @@ The ECOSTRESS library stores each spectrum as an individual text file
 with a header section of key-value metadata followed by two-column
 (wavelength, value) spectral data.
 
+The raw archive is mirrored on Hugging Face Datasets; see
+``ECOSTRESS_HF_REPO`` below.
+
 Reference: https://speclib.jpl.nasa.gov
 """
 
 import logging
 import re
+import zipfile
 from pathlib import Path
 from typing import Iterator
 
+from huggingface_hub import hf_hub_download
 from tqdm import tqdm
 
 from openspeclib.loaders.base import BaseLoader
@@ -30,6 +35,11 @@ from openspeclib.models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Raw archive mirrored on Hugging Face Datasets.
+ECOSTRESS_HF_REPO = "null-jones/ecostresslib"
+ECOSTRESS_HF_FILENAME = "ecospeclib_1776217602535.zip"
+ECOSTRESS_HF_REVISION = "main"
 
 ECOSTRESS_CATEGORY_MAP: dict[str, MaterialCategory] = {
     "mineral": MaterialCategory.MINERAL,
@@ -154,9 +164,26 @@ def parse_ecostress_file(filepath: Path) -> SpectrumRecord:
 
     # Extract metadata from header
     name = header.get("Name", filepath.stem)
-    sample_id = header.get("SampleNo", header.get("Sample No", None))
-    raw_class = header.get("Class", header.get("Type", "other"))
-    subcategory = header.get("SubClass", header.get("Subclass", None))
+    sample_id = header.get(
+        "SampleNo",
+        header.get("Sample No", header.get("Sample No.", None)),
+    )
+    # ECOSTRESS puts the top-level category in "Type" (e.g. Mineral, Manmade)
+    # and the finer grouping in "Class" (e.g. Silicate, Construction Material).
+    # Try Type first; if it doesn't match a known category, fall back to Class
+    # (some older ECOSTRESS records swap these fields).
+    raw_type = header.get("Type", "").strip()
+    raw_class_field = header.get("Class", "").strip()
+    if _normalize_category(raw_type) is not MaterialCategory.OTHER:
+        raw_class = raw_type
+    elif _normalize_category(raw_class_field) is not MaterialCategory.OTHER:
+        raw_class = raw_class_field
+    else:
+        raw_class = raw_type or raw_class_field or "other"
+    subcategory = header.get(
+        "SubClass",
+        header.get("Subclass", raw_class_field or None),
+    )
     particle_size = header.get("ParticleSize", header.get("Particle Size", None))
     origin = header.get("Origin", None)
     description = header.get("Description", None)
@@ -209,36 +236,63 @@ def parse_ecostress_file(filepath: Path) -> SpectrumRecord:
 class EcostressLoader(BaseLoader):
     """Loader for the ECOSTRESS Spectral Library."""
 
-    @property
-    def supports_auto_download(self) -> bool:
-        """ECOSTRESS requires manual download from the JPL web portal."""
-        return False
-
     def source_name(self) -> str:
         """Return the source library identifier."""
         return "ecostress"
 
     def download(self, target_dir: Path) -> Path:
-        """Prepare the ECOSTRESS data directory.
+        """Download and extract the ECOSTRESS spectral library archive.
 
-        The ECOSTRESS download portal uses a JavaScript-based cart system
-        and does not provide a direct bulk download URL. Users must download
-        the data manually from https://speclib.jpl.nasa.gov/download and
-        place the spectrum files in the target directory.
+        Fetches the bundled ZIP from the Hugging Face dataset mirror at
+        ``ECOSTRESS_HF_REPO`` and extracts it into ``target_dir``. If the
+        extracted directory already exists with data, the download and
+        extraction steps are skipped — safe to call repeatedly from cached
+        CI runs.
 
         Args:
-            target_dir: Directory where ECOSTRESS data should be placed.
+            target_dir: Directory to download and extract into.
 
         Returns:
-            Path to the data directory.
+            Path to the extracted ECOSTRESS data directory.
+
+        Raises:
+            RuntimeError: If the downloaded file is not a valid ZIP archive.
         """
         target_dir.mkdir(parents=True, exist_ok=True)
+        extract_dir = target_dir / "ecospeclib-all"
+
+        # Fast path: extraction already done (e.g. restored from CI cache).
+        if extract_dir.exists() and any(extract_dir.iterdir()):
+            logger.info("ECOSTRESS data already extracted at %s", extract_dir)
+            return extract_dir
+
         logger.info(
-            "ECOSTRESS data should be placed in %s. "
-            "Download from: https://speclib.jpl.nasa.gov/download",
-            target_dir,
+            "Downloading ECOSTRESS from Hugging Face: %s (%s @ %s)",
+            ECOSTRESS_HF_REPO,
+            ECOSTRESS_HF_FILENAME,
+            ECOSTRESS_HF_REVISION,
         )
-        return target_dir
+        archive_path = Path(
+            hf_hub_download(
+                repo_id=ECOSTRESS_HF_REPO,
+                filename=ECOSTRESS_HF_FILENAME,
+                repo_type="dataset",
+                revision=ECOSTRESS_HF_REVISION,
+                local_dir=str(target_dir),
+            )
+        )
+
+        if not zipfile.is_zipfile(archive_path):
+            raise RuntimeError(
+                f"File downloaded from {ECOSTRESS_HF_REPO}/{ECOSTRESS_HF_FILENAME} "
+                f"is not a valid ZIP archive."
+            )
+
+        logger.info("Extracting ECOSTRESS archive to %s", extract_dir)
+        with zipfile.ZipFile(archive_path, "r") as zf:
+            zf.extractall(extract_dir)
+
+        return extract_dir
 
     def load(self, source_dir: Path) -> Iterator[SpectrumRecord]:
         """Parse all ECOSTRESS spectrum files in the source directory.

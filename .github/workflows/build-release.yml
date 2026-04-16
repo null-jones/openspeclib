@@ -55,7 +55,7 @@ jobs:
             openspeclib download --source "$source" --target "./raw/$source"
             echo "::endgroup::"
           done
-        # Sources requiring manual download (ecostress, relab, asu_tes, bishop)
+        # Sources requiring manual download (relab, asu_tes, bishop)
         # will create empty directories and print instructions.
         # Upload pre-downloaded archives as workflow artifacts or use the
         # data_dir input to point at a pre-populated directory.
