@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../../state/AppContext';
 import SearchBar from '../search/SearchBar';
+import SourceSelector from '../search/SourceSelector';
 import CategoryFilter from '../search/CategoryFilter';
 import SensorSelector from '../search/SensorSelector';
 import ActiveFilters from '../search/ActiveFilters';
@@ -198,6 +199,7 @@ export default function Sidebar() {
         <SearchBar />
       </div>
 
+      <SourceSelector />
       <SensorSelector />
 
       {selectedSensor && <SensorDetails sensor={selectedSensor} />}

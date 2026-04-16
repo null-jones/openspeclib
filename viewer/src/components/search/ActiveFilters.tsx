@@ -6,6 +6,7 @@ export default function ActiveFilters() {
   const hasFilters =
     state.searchText ||
     state.selectedCategories.length > 0 ||
+    state.selectedSources.length > 0 ||
     state.selectedTechnique ||
     state.selectedSensor;
 
@@ -20,6 +21,13 @@ export default function ActiveFilters() {
           onRemove={() => dispatch({ type: 'SET_SEARCH_TEXT', text: '' })}
         />
       )}
+      {state.selectedSources.map((s) => (
+        <Tag
+          key={`src-${s}`}
+          label={s}
+          onRemove={() => dispatch({ type: 'TOGGLE_SOURCE', source: s })}
+        />
+      ))}
       {state.selectedCategories.map((c) => (
         <Tag
           key={c}

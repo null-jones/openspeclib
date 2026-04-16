@@ -56,6 +56,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const filters: SearchFilters = {
       text: state.searchText,
       categories: state.selectedCategories,
+      sources: state.selectedSources,
       technique: state.selectedTechnique,
       wavelengthMin: state.wavelengthRange[0],
       wavelengthMax: state.wavelengthRange[1],
@@ -76,6 +77,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     state.catalogRecords,
     state.searchText,
     state.selectedCategories,
+    state.selectedSources,
     state.selectedTechnique,
     state.wavelengthRange,
     state.selectedSensor,

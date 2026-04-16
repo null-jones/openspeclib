@@ -13,6 +13,7 @@ export interface AppState {
   // Search/filter
   searchText: string;
   selectedCategories: string[];
+  selectedSources: string[]; // source library IDs (empty = all)
   selectedTechnique: string | null;
   wavelengthRange: [number, number]; // [min, max] in um
   selectedSensor: SensorDefinition | null;
@@ -42,6 +43,8 @@ export type AppAction =
   | { type: 'SET_SEARCH_TEXT'; text: string }
   | { type: 'SET_CATEGORIES'; categories: string[] }
   | { type: 'TOGGLE_CATEGORY'; category: string }
+  | { type: 'SET_SOURCES'; sources: string[] }
+  | { type: 'TOGGLE_SOURCE'; source: string }
   | { type: 'SET_TECHNIQUE'; technique: string | null }
   | { type: 'SET_WAVELENGTH_RANGE'; range: [number, number] }
   | { type: 'SET_SENSOR'; sensor: SensorDefinition | null }
@@ -64,6 +67,7 @@ export const initialState: AppState = {
   duckdbError: null,
   searchText: '',
   selectedCategories: [],
+  selectedSources: [],
   selectedTechnique: null,
   wavelengthRange: [0.2, 200],
   selectedSensor: null,
@@ -98,6 +102,14 @@ export function appReducer(state: AppState, action: AppAction): AppState {
         ? state.selectedCategories.filter((c) => c !== action.category)
         : [...state.selectedCategories, action.category];
       return { ...state, selectedCategories: cats, pageOffset: 0 };
+    }
+    case 'SET_SOURCES':
+      return { ...state, selectedSources: action.sources, pageOffset: 0 };
+    case 'TOGGLE_SOURCE': {
+      const srcs = state.selectedSources.includes(action.source)
+        ? state.selectedSources.filter((s) => s !== action.source)
+        : [...state.selectedSources, action.source];
+      return { ...state, selectedSources: srcs, pageOffset: 0 };
     }
     case 'SET_TECHNIQUE':
       return { ...state, selectedTechnique: action.technique, pageOffset: 0 };

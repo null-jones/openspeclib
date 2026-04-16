@@ -30,11 +30,30 @@ export async function fetchLicenses(): Promise<LicensesFile | null> {
 export interface SearchFilters {
   text: string;
   categories: string[];
+  sources: string[];
   technique: string | null;
   wavelengthMin: number | null;
   wavelengthMax: number | null;
   sensorWavelengthMin: number | null;
   sensorWavelengthMax: number | null;
+}
+
+/** Convert a wavelength value to micrometers based on the record's unit. */
+function toMicrometerRange(r: CatalogRecord): [number, number] {
+  const unit = r.spectral_data.wavelength_unit;
+  let min = r.spectral_data.wavelength_min;
+  let max = r.spectral_data.wavelength_max;
+  if (unit === 'nm') {
+    min /= 1000;
+    max /= 1000;
+  } else if (unit === 'cm-1') {
+    // wavenumber: higher cm-1 = shorter wavelength
+    const lo = 10000 / max;
+    const hi = 10000 / min;
+    min = lo;
+    max = hi;
+  }
+  return [min, max];
 }
 
 /** In-memory search against catalog records (used before DuckDB is ready). */
@@ -57,6 +76,11 @@ export function searchCatalog(
     );
   }
 
+  if (filters.sources.length > 0) {
+    const srcs = new Set(filters.sources);
+    filtered = filtered.filter((r) => srcs.has(r.source.library));
+  }
+
   if (filters.categories.length > 0) {
     const cats = new Set(filters.categories);
     filtered = filtered.filter((r) => cats.has(r.material.category));
@@ -69,23 +93,24 @@ export function searchCatalog(
   }
 
   if (filters.wavelengthMin !== null) {
-    filtered = filtered.filter(
-      (r) => r.spectral_data.wavelength_max >= filters.wavelengthMin!,
-    );
+    filtered = filtered.filter((r) => {
+      const [, max] = toMicrometerRange(r);
+      return max >= filters.wavelengthMin!;
+    });
   }
   if (filters.wavelengthMax !== null) {
-    filtered = filtered.filter(
-      (r) => r.spectral_data.wavelength_min <= filters.wavelengthMax!,
-    );
+    filtered = filtered.filter((r) => {
+      const [min] = toMicrometerRange(r);
+      return min <= filters.wavelengthMax!;
+    });
   }
 
-  // Sensor range overlap filter
+  // Sensor range overlap filter (sensor ranges are already in micrometers)
   if (filters.sensorWavelengthMin !== null && filters.sensorWavelengthMax !== null) {
-    filtered = filtered.filter(
-      (r) =>
-        r.spectral_data.wavelength_max >= filters.sensorWavelengthMin! &&
-        r.spectral_data.wavelength_min <= filters.sensorWavelengthMax!,
-    );
+    filtered = filtered.filter((r) => {
+      const [min, max] = toMicrometerRange(r);
+      return max >= filters.sensorWavelengthMin! && min <= filters.sensorWavelengthMax!;
+    });
     // Also restrict to reflectance when a sensor is selected
     filtered = filtered.filter((r) => r.measurement.technique === 'reflectance');
   }
