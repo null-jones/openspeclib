@@ -121,40 +121,45 @@ jobs:
 
       - name: Generate release notes
         id: notes
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
         run: |
-          TOTAL=$(python -c "import json; c=json.load(open('library/catalog.json')); print(c['statistics']['total_spectra'])")
-          SOURCES_LIST=$(python -c "
+          python - <<'PY'
           import json
-          c = json.load(open('library/catalog.json'))
-          for name, info in c['sources'].items():
-              print(f'- **{info[\"name\"]}** (v{info[\"version\"]}): {info[\"spectrum_count\"]} spectra')
-          ")
+          import os
 
-          cat << 'NOTES' > release_notes.md
-          ## OpenSpecLib v${{ inputs.version }}
+          version = os.environ["RELEASE_VERSION"]
+          catalog = json.load(open("library/catalog.json"))
+          total = catalog["statistics"]["total_spectra"]
+          sources_list = "\n".join(
+              f"- **{info['name']}** (v{info['version']}): {info['spectrum_count']} spectra"
+              for info in catalog["sources"].values()
+          )
 
-          Amalgamated spectral library containing **${TOTAL} spectra** from the following sources:
+          notes = f"""## OpenSpecLib v{version}
 
-          ${SOURCES_LIST}
+          Amalgamated spectral library containing **{total} spectra** from the following sources:
+
+          {sources_list}
 
           ### Artifacts
 
-          - `openspeclib-${{ inputs.version }}.tar.gz` — Full library (catalog + all spectral data chunks)
-          - `openspeclib-catalog-${{ inputs.version }}.json` — Catalog only (metadata index, no spectral arrays)
+          - `openspeclib-{version}.tar.gz` — Full library (catalog + all spectral data chunks)
+          - `openspeclib-catalog-{version}.json` — Catalog only (metadata index, no spectral arrays)
           - `checksums.txt` — SHA-256 checksums
 
           ### Usage
 
           Download and extract the full library:
           ```bash
-          tar -xzf openspeclib-${{ inputs.version }}.tar.gz -C ./speclib
+          tar -xzf openspeclib-{version}.tar.gz -C ./speclib
           ```
 
           Use just the catalog for lightweight metadata queries (JSON):
           ```python
           import json
-          catalog = json.load(open("openspeclib-catalog-${{ inputs.version }}.json"))
-          print(f"Total spectra: {catalog['statistics']['total_spectra']}")
+          catalog = json.load(open("openspeclib-catalog-{version}.json"))
+          print(f"Total spectra: {{catalog['statistics']['total_spectra']}}")
           ```
 
           Library chunks are **Apache Parquet (zstd-compressed)** with one row per spectrum
@@ -176,7 +181,9 @@ jobs:
           See [docs/data-structure.md](docs/data-structure.md) and
           [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the
           full schema specification and column reference.
-          NOTES
+          """
+          open("release_notes.md", "w").write(notes)
+          PY
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
