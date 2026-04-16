@@ -112,11 +112,22 @@ Each spectrum record contains:
 
 See [docs/data-structure.md](docs/data-structure.md) for the full schema specification.
 
+## Licensing
+
+> **Important:** Licensing terms differ between the source spectral libraries included in OpenSpecLib. Users must review and comply with the specific license for each source from which they use data.
+
+The OpenSpecLib code is released under the [MIT License](LICENSE). However, the spectral data retains the original licensing terms of each source library. While most sources are designated Public Domain, terms vary -- for example, the Bishop Spectral Library restricts use to non-commercial purposes with mandatory citation.
+
+Every release includes a `licenses.json` file alongside `catalog.json`, providing a machine-readable index of licensing and citation information keyed by source identifier (matching the `source.library` field in catalog records and Parquet files). Use it to programmatically look up the license and required citation for any spectrum.
+
+See [docs/licensing.md](docs/licensing.md) for full details and [docs/provenance.md](docs/provenance.md) for complete source attributions.
+
 ## Documentation
 
 - [Data Structure Specification](docs/data-structure.md) — Formal schema definition with field descriptions
 - [Processing Pipeline](docs/processing-pipeline.md) — Pipeline stages, loader details, CLI usage
-- [Data Provenance](docs/provenance.md) — Source citations, DOIs, license terms
+- [Licensing and Citations](docs/licensing.md) — License terms, `licenses.json` format, attribution requirements
+- [Data Provenance](docs/provenance.md) — Source citations, DOIs, full provenance details
 - [Adding Sources](docs/adding-sources.md) — Guide for integrating new spectral libraries
 
 ## GitHub Actions

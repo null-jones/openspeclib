@@ -44,6 +44,11 @@ RELAB_SOURCE = Source(
     ),
 )
 
+RELAB_SOURCE_INFO_EXTRA = {
+    "license_url": None,
+    "citation_doi": None,
+}
+
 RELAB_CATEGORY_MAP: dict[str, MaterialCategory] = {
     "mineral": MaterialCategory.MINERAL,
     "rock": MaterialCategory.ROCK,

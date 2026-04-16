@@ -106,6 +106,25 @@ function InfoModal({ onClose }: { onClose: () => void }) {
             </p>
           </div>
 
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+            <h3 className="font-semibold text-amber-900 mb-1">Licensing Notice</h3>
+            <p className="text-amber-800 text-xs">
+              <strong>Licensing terms differ between source spectral libraries.</strong> Each
+              source library has its own license governing how its data may be used. Most sources
+              are Public Domain, but some (e.g. Bishop Spectral Library) restrict use to
+              non-commercial purposes with mandatory citation. Check the{' '}
+              <code className="bg-amber-100 px-1 rounded">source.library</code> field for each
+              spectrum and consult <code className="bg-amber-100 px-1 rounded">licenses.json</code>{' '}
+              or the{' '}
+              <a href="https://github.com/null-jones/openspeclib/blob/main/docs/licensing.md"
+                target="_blank" rel="noopener noreferrer"
+                className="text-amber-700 underline hover:text-amber-900">
+                licensing documentation
+              </a>{' '}
+              for full details.
+            </p>
+          </div>
+
           <div className="pt-2 border-t border-gray-100 text-xs text-gray-400">
             <p>
               Built with React, DuckDB-WASM, and Plotly.js. Data from{' '}
@@ -121,9 +140,52 @@ function InfoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+function HelpModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">Quick Guide</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-6 py-5 space-y-4 text-sm text-gray-700">
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-2">Getting Started</h3>
+            <ul className="list-disc list-inside space-y-1.5 text-gray-600">
+              <li>Search by material name, keyword, or formula</li>
+              <li>Filter by category to narrow results</li>
+              <li>Select a sensor to filter for compatible spectra and enable downsampling</li>
+              <li>Click table rows to add spectra to your library</li>
+              <li>Export your library as CSV or ENVI format</li>
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-2">Tips</h3>
+            <ul className="list-disc list-inside space-y-1.5 text-gray-600">
+              <li>Use chemical formulas (e.g. SiO2, CaCO3) for precise searches</li>
+              <li>Combine category filters with text search for targeted results</li>
+              <li>The chart updates live as you add or remove spectra</li>
+              <li>Check the sidebar for licensing info when spectra are selected</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Header() {
   const { state } = useAppContext();
   const [showInfo, setShowInfo] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   return (
     <>
@@ -145,6 +207,17 @@ export default function Header() {
           </div>
         </div>
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowHelp(true)}
+            className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
+            title="Quick guide"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Help
+          </button>
           <button
             onClick={() => setShowInfo(true)}
             className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
@@ -169,6 +242,7 @@ export default function Header() {
           </a>
         </div>
       </header>
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
       {showInfo && <InfoModal onClose={() => setShowInfo(false)} />}
     </>
   );

@@ -18,7 +18,7 @@ from typing import Any
 
 import pyarrow as pa
 
-from openspeclib.models import CatalogFile, SpectrumRecord
+from openspeclib.models import CatalogFile, LicensesFile, SpectrumRecord
 from openspeclib.storage import (
     _META_SOURCE,
     _META_VERSION,
@@ -74,6 +74,7 @@ def main() -> None:
     print("Generating schemas:")
     write_json_schema(SpectrumRecord, "spectrum.schema.json")
     write_json_schema(CatalogFile, "catalog.schema.json")
+    write_json_schema(LicensesFile, "licenses.schema.json")
     write_arrow_schema("library.arrow.schema.json")
     print("Done.")
 

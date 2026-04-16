@@ -471,10 +471,36 @@
           "title": "License",
           "type": "string"
         },
+        "license_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the full license text, if available.",
+          "title": "License Url"
+        },
         "citation": {
           "description": "Recommended citation string.",
           "title": "Citation",
           "type": "string"
+        },
+        "citation_doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "DOI for the citation, if available.",
+          "title": "Citation Doi"
         },
         "spectrum_count": {
           "description": "Number of spectra from this source.",

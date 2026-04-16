@@ -92,6 +92,23 @@ export interface CatalogFile {
   spectra: CatalogRecord[];
 }
 
+export interface LicenseEntry {
+  name: string;
+  version: string;
+  url: string;
+  license: string;
+  license_url: string | null;
+  citation: string;
+  citation_doi: string | null;
+}
+
+export interface LicensesFile {
+  openspeclib_version: string;
+  generated_at: string;
+  notice: string;
+  sources: Record<string, LicenseEntry>;
+}
+
 /** Full spectrum data including wavelength/value arrays (from Parquet) */
 export interface SpectrumFull {
   id: string;

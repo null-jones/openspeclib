@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "LicenseEntry": {
+      "description": "Licensing and citation information for a single source library.",
+      "properties": {
+        "name": {
+          "description": "Full name of the source library.",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "description": "Version of the source library.",
+          "title": "Version",
+          "type": "string"
+        },
+        "url": {
+          "description": "DOI or URL for the source library.",
+          "title": "Url",
+          "type": "string"
+        },
+        "license": {
+          "description": "License governing the source data.",
+          "title": "License",
+          "type": "string"
+        },
+        "license_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the full license text, if available.",
+          "title": "License Url"
+        },
+        "citation": {
+          "description": "Recommended citation string.",
+          "title": "Citation",
+          "type": "string"
+        },
+        "citation_doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "DOI for the citation, if available.",
+          "title": "Citation Doi"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "url",
+        "license",
+        "citation"
+      ],
+      "title": "LicenseEntry",
+      "type": "object"
+    }
+  },
+  "description": "Top-level structure of the licenses.json file.\n\nProvides a standalone index of licensing and citation information for\neach source library, keyed by the same source identifiers used in the\ncatalog and Parquet files (e.g. ``usgs_splib07``, ``ecostress``).",
+  "properties": {
+    "openspeclib_version": {
+      "description": "Version of the OpenSpecLib schema.",
+      "title": "Openspeclib Version",
+      "type": "string"
+    },
+    "generated_at": {
+      "description": "Timestamp when the file was generated.",
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "notice": {
+      "description": "Important notice that licensing terms differ between source libraries and users must check the terms for each source they use.",
+      "title": "Notice",
+      "type": "string"
+    },
+    "sources": {
+      "additionalProperties": {
+        "$ref": "#/$defs/LicenseEntry"
+      },
+      "description": "Licensing and citation info keyed by source library identifier.",
+      "title": "Sources",
+      "type": "object"
+    }
+  },
+  "required": [
+    "openspeclib_version",
+    "generated_at",
+    "notice",
+    "sources"
+  ],
+  "title": "LicensesFile",
+  "type": "object"
+}

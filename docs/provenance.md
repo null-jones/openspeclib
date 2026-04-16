@@ -121,3 +121,9 @@ When publishing results derived from OpenSpecLib data, please cite:
 2. The specific source library or libraries from which the data originated (identifiable via the `source.library` field in each spectrum record)
 
 The `source.citation` field in each spectrum record provides the appropriate citation for that specific data point.
+
+---
+
+## Machine-Readable Licensing
+
+Every OpenSpecLib release includes a `licenses.json` file that provides the same licensing and citation information in a machine-readable format, keyed by source library identifier. See [Licensing and Citations](licensing.md) for details on its structure and usage.

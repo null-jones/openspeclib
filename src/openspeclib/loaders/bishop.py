@@ -45,6 +45,11 @@ BISHOP_SOURCE = Source(
     ),
 )
 
+BISHOP_SOURCE_INFO_EXTRA = {
+    "license_url": None,
+    "citation_doi": "10.1180/claymin.2008.043.1.03",
+}
+
 BISHOP_CATEGORY_MAP: dict[str, MaterialCategory] = {
     "carbonate": MaterialCategory.MINERAL,
     "sulfate": MaterialCategory.MINERAL,

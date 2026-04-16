@@ -44,6 +44,11 @@ ASU_TES_SOURCE = Source(
     ),
 )
 
+ASU_TES_SOURCE_INFO_EXTRA = {
+    "license_url": None,
+    "citation_doi": "10.1029/1999JE001138",
+}
+
 ASU_MINERAL_GROUP_MAP: dict[str, str] = {
     "silicate": "silicate",
     "carbonate": "carbonate",

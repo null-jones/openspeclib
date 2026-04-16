@@ -263,7 +263,13 @@ class SourceInfo(BaseModel):
     version: str = Field(description="Version of the source library.")
     url: str = Field(description="DOI or URL for the source library.")
     license: str = Field(description="License governing the source data.")
+    license_url: Optional[str] = Field(
+        default=None, description="URL to the full license text, if available."
+    )
     citation: str = Field(description="Recommended citation string.")
+    citation_doi: Optional[str] = Field(
+        default=None, description="DOI for the citation, if available."
+    )
     spectrum_count: int = Field(ge=0, description="Number of spectra from this source.")
 
 
@@ -294,3 +300,40 @@ class LibraryChunkFile(BaseModel):
     source: str = Field(description="Source library identifier for this file.")
     spectrum_count: int = Field(ge=0, description="Number of spectra in this file.")
     spectra: list[SpectrumRecord] = Field(description="Full spectrum records.")
+
+
+class LicenseEntry(BaseModel):
+    """Licensing and citation information for a single source library."""
+
+    name: str = Field(description="Full name of the source library.")
+    version: str = Field(description="Version of the source library.")
+    url: str = Field(description="DOI or URL for the source library.")
+    license: str = Field(description="License governing the source data.")
+    license_url: Optional[str] = Field(
+        default=None, description="URL to the full license text, if available."
+    )
+    citation: str = Field(description="Recommended citation string.")
+    citation_doi: Optional[str] = Field(
+        default=None, description="DOI for the citation, if available."
+    )
+
+
+class LicensesFile(BaseModel):
+    """Top-level structure of the licenses.json file.
+
+    Provides a standalone index of licensing and citation information for
+    each source library, keyed by the same source identifiers used in the
+    catalog and Parquet files (e.g. ``usgs_splib07``, ``ecostress``).
+    """
+
+    openspeclib_version: str = Field(description="Version of the OpenSpecLib schema.")
+    generated_at: _dt.datetime = Field(description="Timestamp when the file was generated.")
+    notice: str = Field(
+        description=(
+            "Important notice that licensing terms differ between source libraries "
+            "and users must check the terms for each source they use."
+        ),
+    )
+    sources: dict[str, LicenseEntry] = Field(
+        description="Licensing and citation info keyed by source library identifier."
+    )

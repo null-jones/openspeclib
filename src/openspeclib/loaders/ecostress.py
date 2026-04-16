@@ -69,6 +69,11 @@ ECOSTRESS_SOURCE = Source(
     ),
 )
 
+ECOSTRESS_SOURCE_INFO_EXTRA = {
+    "license_url": None,
+    "citation_doi": "10.1016/j.rse.2019.05.015",
+}
+
 
 def _normalize_category(raw: str) -> MaterialCategory:
     """Map an ECOSTRESS class string to a canonical MaterialCategory.

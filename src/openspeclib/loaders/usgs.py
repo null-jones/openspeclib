@@ -58,6 +58,11 @@ USGS_SOURCE = Source(
     ),
 )
 
+USGS_SOURCE_INFO_EXTRA = {
+    "license_url": None,
+    "citation_doi": "10.3133/ds1035",
+}
+
 BAD_VALUE = -1.23e34
 
 USGS_CHAPTER_MAP: dict[str, MaterialCategory] = {

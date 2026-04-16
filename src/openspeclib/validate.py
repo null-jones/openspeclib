@@ -16,6 +16,7 @@ import jsonschema
 from openspeclib import storage
 from openspeclib.models import (
     CatalogFile,
+    LicensesFile,
     MaterialCategory,
     MeasurementTechnique,
     WavelengthUnit,
@@ -130,6 +131,7 @@ def validate_library(library_dir: Path) -> ValidationResult:
     _check_statistics_consistency(catalog, result)
     _check_enum_values(catalog, result)
     _validate_chunk_files(catalog, library_dir, result)
+    _validate_licenses_file(catalog, library_dir, result)
 
     return result
 
@@ -287,3 +289,52 @@ def _validate_chunk_files(
                     f"Spectrum '{spectrum.id}': bandpass length ({len(sd.bandpass)}) "
                     f"!= num_points ({sd.num_points})"
                 )
+
+
+def _validate_licenses_file(
+    catalog: CatalogFile, library_dir: Path, result: ValidationResult
+) -> None:
+    """Validate the licenses.json file exists and is consistent with the catalog.
+
+    Args:
+        catalog: The parsed catalog for cross-referencing.
+        library_dir: Root directory of the built library.
+        result: Validation result to append errors/warnings to.
+    """
+    licenses_path = library_dir / "licenses.json"
+    if not licenses_path.exists():
+        result.warnings.append("licenses.json not found")
+        return
+
+    try:
+        licenses_text = licenses_path.read_text(encoding="utf-8")
+        licenses_data = json.loads(licenses_text)
+    except (json.JSONDecodeError, OSError) as e:
+        result.errors.append(f"Failed to read licenses.json: {e}")
+        return
+
+    # Schema validation
+    schema_errors = validate_schema(licenses_data, "licenses.schema.json")
+    for err in schema_errors:
+        result.errors.append(f"Licenses schema: {err}")
+
+    # Parse with Pydantic
+    try:
+        licenses = LicensesFile.model_validate(licenses_data)
+    except Exception as e:
+        result.errors.append(f"Licenses parse error: {e}")
+        return
+
+    # Cross-reference: every source in catalog should have a license entry
+    for source_name in catalog.sources:
+        if source_name not in licenses.sources:
+            result.errors.append(
+                f"Source '{source_name}' in catalog but missing from licenses.json"
+            )
+
+    # Every license entry should have non-empty license and citation
+    for source_name, entry in licenses.sources.items():
+        if not entry.license:
+            result.warnings.append(f"licenses.json: '{source_name}' has empty license field")
+        if not entry.citation:
+            result.warnings.append(f"licenses.json: '{source_name}' has empty citation field")
