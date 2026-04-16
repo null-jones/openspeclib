@@ -369,7 +369,8 @@
         "ecostress",
         "relab",
         "asu_tes",
-        "bishop"
+        "bishop",
+        "ecosis"
       ],
       "title": "SourceLibrary",
       "type": "string"

@@ -55,6 +55,10 @@ _SOURCE_EXTRA: dict[str, dict[str, str | None]] = {
         "license_url": None,
         "citation_doi": "10.1180/claymin.2008.043.1.03",
     },
+    "ecosis": {
+        "license_url": "https://ecosis.org",
+        "citation_doi": None,
+    },
 }
 
 

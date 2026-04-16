@@ -1,0 +1,50 @@
+[
+  {
+    "id": "03e46f54-7d68-4a8c-896a-fcea87e9cf10",
+    "name": "2008 UW Biotron Fresh Leaf Spectra and Gas Exchange Leaf Traits"
+  },
+  {
+    "id": "a12286ac-929f-4e3e-9b9c-517e10fe4087",
+    "name": "CABO 2018-2019 Leaf-Level Spectra v2"
+  },
+  {
+    "id": "13658942-1760-41c5-944b-ccbdaebf3127",
+    "name": "2010-2017 Atqasuk Alaska CALM Plots Canopy Reflectance Spectra"
+  },
+  {
+    "id": "c7b6affd-8b15-4f95-abf1-9956d8af1d52",
+    "name": "Fractional Cover Simulated VSWIR Dataset v2"
+  },
+  {
+    "id": "6dc358cd-ce2d-4e97-920a-82a3b04c8bc2",
+    "name": "Urban Materials Spectral Library"
+  },
+  {
+    "id": "060d2822-f250-4869-b734-4a92450393f0",
+    "name": "Hawaii 2000 Vegetation Species Spectra"
+  },
+  {
+    "id": "85ca4a2e-0a61-4ef7-9e0f-ffa6ea1c2c22",
+    "name": "Intact and Ground Leaf Litter Spectra"
+  },
+  {
+    "id": "38942519-e925-4cbc-bbbd-ce6dcf276f73",
+    "name": "EMIT Manually Adjusted Water Reflectance Spectra"
+  },
+  {
+    "id": "99aabe57-37f0-4667-aa7a-ba41ee387a82",
+    "name": "Plastic Pellets Spectral Reference Library"
+  },
+  {
+    "id": "dd94f09c-1794-44f4-82e9-a7ca707a1ec0",
+    "name": "HyspIRI Airborne Campaign Leaf and Canopy Spectra"
+  },
+  {
+    "id": "2074ef11-d43c-4cb9-bf2b-19d4fc57dc4e",
+    "name": "NGEE Arctic 2017 Canopy Spectral Reflectance"
+  },
+  {
+    "id": "20988266-b57b-4899-a410-b3c4e5daa646",
+    "name": "Fresh and Dry Plant Tissue Spectra"
+  }
+]

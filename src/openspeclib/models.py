@@ -19,6 +19,7 @@ class SourceLibrary(str, Enum):
     RELAB = "relab"
     ASU_TES = "asu_tes"
     BISHOP = "bishop"
+    ECOSIS = "ecosis"
 
 
 class MaterialCategory(str, Enum):

@@ -113,6 +113,25 @@ The Bishop Spectral Library provides high-quality reflectance spectra of mineral
 
 ---
 
+## EcoSIS (Ecological Spectral Information System)
+
+**Full Title:** Ecological Spectral Information System (EcoSIS)
+
+**Publisher:** Center for Spatial Technologies and Remote Sensing (CSTARS), UC Davis / NASA
+
+**URL:** [https://ecosis.org](https://ecosis.org)
+
+**License:** EcoSIS Data Use Policy -- individual datasets may have additional terms. Users should cite the specific dataset(s) used.
+
+**Recommended Citation:**
+
+> Ecological Spectral Information System (EcoSIS). Data set. Available on-line [http://ecosis.org] from the Ecological Spectral Information System (EcoSIS).
+
+**Description:**
+EcoSIS is a NASA-supported spectral library and data portal that aggregates ecological spectral measurements from individual researcher-contributed datasets. Unlike monolithic spectral libraries, each EcoSIS dataset has its own authors, citation, and metadata. The collection includes leaf-level reflectance, canopy spectra, soil reflectance, water reflectance, and urban material spectra from field and laboratory measurements worldwide. OpenSpecLib ingests a curated subset of EcoSIS datasets; each spectrum retains its dataset-specific citation in the ``source.citation`` field, and dataset provenance is stored in ``additional_properties``.
+
+---
+
 ## Attribution Requirements
 
 When publishing results derived from OpenSpecLib data, please cite:

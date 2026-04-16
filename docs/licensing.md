@@ -64,8 +64,9 @@ The keys in `sources` match the `source.library` column in each Parquet file and
 | RELAB Spectral Database | Public Domain | -- |
 | ASU Thermal Emission Spectral Library | Public Domain | [10.1029/1999JE001138](https://doi.org/10.1029/1999JE001138) |
 | Bishop Spectral Library | Public Domain (non-commercial use with citation) | [10.1180/claymin.2008.043.1.03](https://doi.org/10.1180/claymin.2008.043.1.03) |
+| EcoSIS | EcoSIS Data Use Policy (per-dataset citations) | -- |
 
-Note that while most sources are designated "Public Domain", the Bishop Spectral Library restricts use to non-commercial purposes and requires citation. Always check the specific terms for your use case.
+Note that while most sources are designated "Public Domain", the Bishop Spectral Library restricts use to non-commercial purposes and requires citation. EcoSIS datasets have individual per-dataset citations stored in each spectrum's `source.citation` field. Always check the specific terms for your use case.
 
 ---
 

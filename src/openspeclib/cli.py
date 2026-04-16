@@ -18,6 +18,7 @@ LOADERS = {
     "relab": "openspeclib.loaders.relab:RelabLoader",
     "asu_tes": "openspeclib.loaders.asu_tes:AsuTesLoader",
     "bishop": "openspeclib.loaders.bishop:BishopLoader",
+    "ecosis": "openspeclib.loaders.ecosis:EcosisLoader",
 }
 
 

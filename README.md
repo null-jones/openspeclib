@@ -21,6 +21,7 @@ OpenSpecLib addresses this fragmentation by ingesting spectral data from multipl
 | [RELAB Spectral Database](https://sites.brown.edu/relab/) | Minerals, meteorites, lunar samples | 0.3 -- 26 um | ~3,000 |
 | [ASU Thermal Emission Spectral Library](https://speclib.asu.edu) | Rock-forming minerals (thermal IR) | 5 -- 45 um (2000 -- 220 cm-1) | ~800 |
 | [Bishop Spectral Library](https://dmp.seti.org/jbishop/spectral-library.html) | Carbonates, hydrated minerals, phyllosilicates | 0.3 -- 25 um | ~500 |
+| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials | 350 -- 2500 nm | ~17,000 |
 
 ## Installation
 
