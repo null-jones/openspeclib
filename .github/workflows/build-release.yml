@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       sources:
-        description: "Comma-separated sources to include (usgs,ecostress,relab,asu_tes,bishop or all)"
+        description: "Comma-separated sources to include (usgs,ecostress,relab,asu_tes,bishop,ecosis or all)"
         required: false
         default: "all"
         type: string
@@ -41,7 +41,7 @@ jobs:
         id: sources
         run: |
           if [ "${{ inputs.sources }}" = "all" ]; then
-            echo "list=usgs,ecostress,relab,asu_tes,bishop" >> "$GITHUB_OUTPUT"
+            echo "list=usgs,ecostress,relab,asu_tes,bishop,ecosis" >> "$GITHUB_OUTPUT"
           else
             echo "list=${{ inputs.sources }}" >> "$GITHUB_OUTPUT"
           fi
@@ -68,6 +68,7 @@ jobs:
             ./raw/relab
             ./raw/asu_tes
             ./raw/bishop
+            ./raw/ecosis
           key: spectral-data-manual-${{ hashFiles('src/openspeclib/loaders/*.py') }}
           restore-keys: |
             spectral-data-manual-
@@ -81,7 +82,7 @@ jobs:
             input_dir="./raw/$source"
 
             # Check if the source directory has any data files
-            file_count=$(find "$input_dir" -type f \( -name "*.txt" -o -name "*.csv" -o -name "*.asc" -o -name "*.tab" -o -name "*.spectrum.txt" \) 2>/dev/null | head -1 | wc -l)
+            file_count=$(find "$input_dir" -type f \( -name "*.txt" -o -name "*.csv" -o -name "*.asc" -o -name "*.tab" -o -name "*.spectrum.txt" -o -name "*.json" \) 2>/dev/null | head -1 | wc -l)
             if [ "$file_count" -eq 0 ]; then
               echo "::warning::Skipping $source — no data files found in $input_dir (manual download required)"
               continue
