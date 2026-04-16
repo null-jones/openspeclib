@@ -14,7 +14,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# Python packaging lib directories (anchored to repo root so viewer/src/lib/ is not ignored)
+/lib/
 lib64/
 parts/
 sdist/

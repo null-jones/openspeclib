@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import Plotly from 'plotly.js-dist-min';
 import createPlotlyComponent from 'react-plotly.js/factory';
 import { useAppContext } from '../../state/AppContext';
@@ -28,11 +28,66 @@ const PLOTLY_CONFIG = {
   displaylogo: false,
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function DownsampledPlot({ traces, sensor }: { traces: any[]; sensor: { name: string; bands: { name: string }[]; wavelengthMin: number; wavelengthMax: number } }) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    const layout = {
+      ...SHARED_LAYOUT,
+      autosize: true,
+      height: 350,
+      margin: { l: 55, r: 15, t: 10, b: 45 },
+      xaxis: {
+        title: { text: 'Wavelength (μm)', font: { size: 11 } },
+        showgrid: true,
+        gridcolor: '#f3f4f6',
+        zeroline: false,
+        range: [sensor.wavelengthMin - 0.02, sensor.wavelengthMax + 0.02],
+      },
+      yaxis: {
+        title: { text: 'Reflectance', font: { size: 11 } },
+        showgrid: true,
+        gridcolor: '#f3f4f6',
+        zeroline: false,
+        rangemode: 'tozero' as const,
+      },
+      legend: {
+        orientation: 'h' as const,
+        yanchor: 'bottom' as const,
+        y: 1.01,
+        xanchor: 'left' as const,
+        x: 0,
+        font: { size: 10 },
+      },
+    };
+    // Deep-clone traces so Plotly's internal mutation doesn't break React state.
+    const cloned = JSON.parse(JSON.stringify(traces));
+    Plotly.newPlot(ref.current, cloned, layout, { ...PLOTLY_CONFIG, responsive: true });
+    return () => { if (ref.current) Plotly.purge(ref.current); };
+  }, [traces, sensor]);
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      <div className="px-4 pt-2 pb-0">
+        <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+          {sensor.name} — Downsampled
+          <span className="font-normal text-gray-400 ml-1">
+            ({sensor.bands.length} bands)
+          </span>
+        </h4>
+      </div>
+      <div ref={ref} style={{ width: '100%' }} />
+    </div>
+  );
+}
+
 export default function SpectralChart() {
   const { state } = useAppContext();
   const { librarySpectra, selectedSensor, downsamplingEnabled, downsampledData } = state;
 
-  const showDownsampled = downsamplingEnabled && !!selectedSensor && downsampledData.size > 0;
+  const showDownsampled = downsamplingEnabled && !!selectedSensor;
   const isHyperspectral = selectedSensor ? selectedSensor.bands.length > 30 : false;
 
   // Original spectra traces
@@ -84,7 +139,7 @@ export default function SpectralChart() {
 
   // Downsampled spectra traces (separate plot)
   const downsampledTraces = useMemo(() => {
-    if (!showDownsampled) return [];
+    if (!selectedSensor || !downsamplingEnabled) return [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const traces: any[] = [];
@@ -94,7 +149,10 @@ export default function SpectralChart() {
       const ds = downsampledData.get(spectrum.id);
       if (!ds) return;
 
-      const validBands = ds.filter((b) => b.value !== null);
+      const validBands = ds
+        .filter((b) => b.value !== null)
+        .sort((a, b) => a.centerWavelength - b.centerWavelength);
+      if (validBands.length === 0) return;
       const mode = isHyperspectral ? 'lines' : 'lines+markers';
 
       traces.push({
@@ -113,7 +171,7 @@ export default function SpectralChart() {
     });
 
     return traces;
-  }, [librarySpectra, downsampledData, showDownsampled, isHyperspectral, selectedSensor]);
+  }, [librarySpectra, downsampledData, selectedSensor, downsamplingEnabled, isHyperspectral]);
 
   if (librarySpectra.length === 0) {
     return (
@@ -173,55 +231,12 @@ export default function SpectralChart() {
         />
       </div>
 
-      {/* Downsampled spectra plot (shown only when downsampling is active) */}
-      {showDownsampled && (
-        <div key={selectedSensor!.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-          <div className="px-4 pt-2 pb-0">
-            <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-              {selectedSensor!.name} — Downsampled
-              <span className="font-normal text-gray-400 ml-1">
-                ({selectedSensor!.bands.length} bands)
-              </span>
-            </h4>
-          </div>
-          <Plot
-            data={downsampledTraces}
-            layout={{
-              ...SHARED_LAYOUT,
-              autosize: true,
-              height: 350,
-              margin: { l: 55, r: 15, t: 10, b: 45 },
-              xaxis: {
-                title: { text: 'Wavelength (μm)', font: { size: 11 } },
-                showgrid: true,
-                gridcolor: '#f3f4f6',
-                zeroline: false,
-                range: [
-                  selectedSensor!.wavelengthMin - 0.02,
-                  selectedSensor!.wavelengthMax + 0.02,
-                ],
-              },
-              yaxis: {
-                title: { text: 'Reflectance', font: { size: 11 } },
-                showgrid: true,
-                gridcolor: '#f3f4f6',
-                zeroline: false,
-                rangemode: 'tozero',
-              },
-              legend: {
-                orientation: 'h',
-                yanchor: 'bottom',
-                y: 1.01,
-                xanchor: 'left',
-                x: 0,
-                font: { size: 10 },
-              },
-            }}
-            config={PLOTLY_CONFIG}
-            useResizeHandler
-            style={{ width: '100%' }}
-          />
-        </div>
+      {/* Downsampled spectra plot — rendered via direct Plotly API for reliable updates */}
+      {selectedSensor && downsamplingEnabled && (
+        <DownsampledPlot
+          traces={downsampledTraces}
+          sensor={selectedSensor}
+        />
       )}
     </div>
   );

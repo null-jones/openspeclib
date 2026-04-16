@@ -123,9 +123,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         spectrum.wavelength_unit,
       );
       // Filter out no-data sentinel values before downsampling
-      const validIdx = val.map((v, i) => (v > -1e10 && v < 1e10 ? i : -1)).filter((i) => i >= 0);
-      const wavelengths = validIdx.map((i) => wl[i]);
-      const values = validIdx.map((i) => val[i]);
+      const validIdx = val.map((v: number, i: number) => (v > -1e10 && v < 1e10 ? i : -1)).filter((i: number) => i >= 0);
+      const wavelengths = validIdx.map((i: number) => wl[i]);
+      const values = validIdx.map((i: number) => val[i]);
       const result = downsampleSpectrum(wavelengths, values, state.selectedSensor.bands);
       data.set(spectrum.id, result);
     }
