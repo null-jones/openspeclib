@@ -38,7 +38,7 @@ class TestBuildLibrary:
         assert (output_dir / "catalog.json").exists()
         assert (output_dir / "VERSION").exists()
 
-    def test_chunk_file_created(self, sample_spectrum: SpectrumRecord, tmp_path: Path) -> None:
+    def test_one_parquet_per_source(self, sample_spectrum: SpectrumRecord, tmp_path: Path) -> None:
         output_dir = tmp_path / "library"
 
         catalog = build_library(
@@ -47,16 +47,21 @@ class TestBuildLibrary:
             output_dir=output_dir,
         )
 
-        chunk_file = catalog.spectra[0].chunk_file
-        chunk_path = output_dir / chunk_file
+        # Single chunk file per source, named <source>.parquet
+        chunk_files = {e.chunk_file for e in catalog.spectra}
+        assert chunk_files == {"spectra/usgs_splib07.parquet"}
+
+        chunk_path = output_dir / "spectra/usgs_splib07.parquet"
         assert chunk_path.exists()
-        assert chunk_path.suffix == ".parquet"
 
         chunk = read_chunk(chunk_path)
+        assert chunk.source == "usgs_splib07"
         assert chunk.spectrum_count == 1
         assert chunk.spectra[0].id == sample_spectrum.id
 
-    def test_multiple_sources(self, sample_spectrum: SpectrumRecord, tmp_path: Path) -> None:
+    def test_multiple_sources_each_get_own_file(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
         output_dir = tmp_path / "library"
 
         # Create a second spectrum with a different source
@@ -84,6 +89,14 @@ class TestBuildLibrary:
         assert catalog.statistics.total_spectra == 2
         assert len(catalog.spectra) == 2
 
+        chunk_files = {e.chunk_file for e in catalog.spectra}
+        assert chunk_files == {
+            "spectra/usgs_splib07.parquet",
+            "spectra/ecostress.parquet",
+        }
+        assert (output_dir / "spectra/usgs_splib07.parquet").exists()
+        assert (output_dir / "spectra/ecostress.parquet").exists()
+
     def test_catalog_record_has_no_arrays(
         self, sample_spectrum: SpectrumRecord, tmp_path: Path
     ) -> None:
@@ -101,12 +114,14 @@ class TestBuildLibrary:
         assert "wavelengths" not in entry["spectral_data"]
         assert "values" not in entry["spectral_data"]
 
-    def test_chunking_large_source(self, sample_spectrum: SpectrumRecord, tmp_path: Path) -> None:
+    def test_large_source_stays_one_file(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
         output_dir = tmp_path / "library"
 
-        # Create 5 records and set chunk_size=2
+        # Make 2500 records with distinct ids across different categories
         records = []
-        for i in range(5):
+        for i in range(2500):
             rec = sample_spectrum.model_copy(update={"id": f"usgs_splib07:test_{i}"})
             records.append(rec)
 
@@ -114,13 +129,19 @@ class TestBuildLibrary:
             record_streams={"usgs_splib07": iter(records)},
             source_metadata={"usgs_splib07": _make_source_info("USGS")},
             output_dir=output_dir,
-            chunk_size=2,
         )
 
-        assert catalog.statistics.total_spectra == 5
-        # Should have 3 chunk files: 2 + 2 + 1
+        assert catalog.statistics.total_spectra == 2500
+        # Single file per source regardless of size
         chunk_files = {e.chunk_file for e in catalog.spectra}
-        assert len(chunk_files) == 3
+        assert chunk_files == {"spectra/usgs_splib07.parquet"}
+
+        # Row groups should partition the file (default row_group_size=1000)
+        import pyarrow.parquet as pq
+
+        pf = pq.ParquetFile(output_dir / "spectra/usgs_splib07.parquet")
+        assert pf.metadata.num_rows == 2500
+        assert pf.metadata.num_row_groups >= 2
 
     def test_source_counts_updated(self, sample_spectrum: SpectrumRecord, tmp_path: Path) -> None:
         output_dir = tmp_path / "library"

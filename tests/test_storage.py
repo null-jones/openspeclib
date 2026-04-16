@@ -1,4 +1,4 @@
-"""Tests for the Parquet-backed chunk storage layer."""
+"""Tests for the Parquet-backed source library storage layer."""
 
 from datetime import date
 from pathlib import Path
@@ -22,9 +22,10 @@ from openspeclib.models import (
 )
 from openspeclib.storage import (
     ARROW_SCHEMA,
+    iter_records,
     read_chunk,
     validate_parquet_schema,
-    write_chunk,
+    write_source,
 )
 
 
@@ -67,13 +68,13 @@ def _build_minimal_record(spectrum_id: str = "test:001") -> SpectrumRecord:
 
 
 def test_write_read_roundtrip(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
-    path = tmp_path / "chunk.parquet"
-    write_chunk([sample_spectrum], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    count = write_source([sample_spectrum], path, source="usgs_splib07")
+    assert count == 1
 
     chunk = read_chunk(path)
 
     assert chunk.source == "usgs_splib07"
-    assert chunk.category == "mineral"
     assert chunk.spectrum_count == 1
     assert len(chunk.spectra) == 1
 
@@ -82,8 +83,8 @@ def test_write_read_roundtrip(tmp_path: Path, sample_spectrum: SpectrumRecord) -
 
 
 def test_parquet_schema_matches_canonical(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
-    path = tmp_path / "chunk.parquet"
-    write_chunk([sample_spectrum], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum], path, source="usgs_splib07")
 
     actual = pq.read_schema(path)
     for expected_field in ARROW_SCHEMA:
@@ -94,21 +95,33 @@ def test_parquet_schema_matches_canonical(tmp_path: Path, sample_spectrum: Spect
         )
 
 
-def test_chunk_metadata_in_footer(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
-    path = tmp_path / "chunk.parquet"
-    write_chunk(
-        [sample_spectrum, sample_spectrum],
-        path,
-        source="usgs_splib07",
-        category="mineral",
-    )
+def test_footer_metadata_only_version_and_source(
+    tmp_path: Path, sample_spectrum: SpectrumRecord
+) -> None:
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum, sample_spectrum], path, source="usgs_splib07")
 
     metadata = pq.read_schema(path).metadata
     assert metadata is not None
     assert metadata[b"openspeclib_version"]
     assert metadata[b"source"] == b"usgs_splib07"
-    assert metadata[b"category"] == b"mineral"
-    assert metadata[b"spectrum_count"] == b"2"
+    # spectrum_count is NOT stored in footer — it's derived from num_rows
+    assert b"spectrum_count" not in metadata
+    assert b"category" not in metadata
+
+
+def test_spectrum_count_derived_from_num_rows(
+    tmp_path: Path, sample_spectrum: SpectrumRecord
+) -> None:
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum] * 7, path, source="usgs_splib07")
+
+    # Native Parquet row count
+    assert pq.ParquetFile(path).metadata.num_rows == 7
+    # Derived into LibraryChunkFile
+    chunk = read_chunk(path)
+    assert chunk.spectrum_count == 7
+    assert len(chunk.spectra) == 7
 
 
 def test_additional_properties_json_roundtrip(tmp_path: Path) -> None:
@@ -122,8 +135,8 @@ def test_additional_properties_json_roundtrip(tmp_path: Path) -> None:
         "nested": {"inner_key": "inner_value", "deeper": {"x": 1}},
     }
 
-    path = tmp_path / "chunk.parquet"
-    write_chunk([record], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
     chunk = read_chunk(path)
 
     assert chunk.spectra[0].additional_properties == record.additional_properties
@@ -140,8 +153,8 @@ def test_nullable_fields_preserved(tmp_path: Path) -> None:
     assert record.measurement.instrument is None
     assert record.quality.notes is None
 
-    path = tmp_path / "chunk.parquet"
-    write_chunk([record], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
     chunk = read_chunk(path)
 
     out = chunk.spectra[0]
@@ -161,8 +174,8 @@ def test_date_fields_roundtrip(tmp_path: Path) -> None:
     record.sample.collection_date = date(2010, 6, 15)
     record.measurement.date = date(2015, 11, 30)
 
-    path = tmp_path / "chunk.parquet"
-    write_chunk([record], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
     chunk = read_chunk(path)
 
     out = chunk.spectra[0]
@@ -171,8 +184,8 @@ def test_date_fields_roundtrip(tmp_path: Path) -> None:
 
 
 def test_validate_parquet_schema_clean(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
-    path = tmp_path / "chunk.parquet"
-    write_chunk([sample_spectrum], path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum], path, source="usgs_splib07")
 
     errors = validate_parquet_schema(path)
     assert errors == []
@@ -201,14 +214,24 @@ def test_validate_parquet_schema_detects_drift(tmp_path: Path) -> None:
 
 
 def test_compression_is_zstd(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
-    path = tmp_path / "chunk.parquet"
-    write_chunk([sample_spectrum] * 10, path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum] * 10, path, source="usgs_splib07")
 
     pf = pq.ParquetFile(path)
     row_group = pf.metadata.row_group(0)
     for col_idx in range(row_group.num_columns):
         compression = row_group.column(col_idx).compression
         assert compression.upper() == "ZSTD", f"Column {col_idx} uses {compression}, not ZSTD"
+
+
+def test_row_groups_honor_row_group_size(tmp_path: Path, sample_spectrum: SpectrumRecord) -> None:
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([sample_spectrum] * 25, path, source="usgs_splib07", row_group_size=10)
+
+    pf = pq.ParquetFile(path)
+    # 25 records at 10/group => 3 row groups (10, 10, 5)
+    assert pf.metadata.num_row_groups == 3
+    assert pf.metadata.num_rows == 25
 
 
 def test_multiple_records_roundtrip(tmp_path: Path) -> None:
@@ -220,13 +243,22 @@ def test_multiple_records_roundtrip(tmp_path: Path) -> None:
         r.spectral_data.wavelength_min = float(i)
         r.spectral_data.wavelength_max = float(i) + 1.0
 
-    path = tmp_path / "chunk.parquet"
-    write_chunk(records, path, source="usgs_splib07", category="mineral")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source(records, path, source="usgs_splib07")
     chunk = read_chunk(path)
 
     assert chunk.spectrum_count == 5
     for original, restored in zip(records, chunk.spectra):
         assert original.model_dump() == restored.model_dump()
+
+
+def test_iter_records_streams_in_order(tmp_path: Path) -> None:
+    records = [_build_minimal_record(f"test:{i:03d}") for i in range(12)]
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source(records, path, source="usgs_splib07", row_group_size=5)
+
+    streamed = list(iter_records(path, batch_size=3))
+    assert [r.id for r in streamed] == [r.id for r in records]
 
 
 def test_read_chunk_missing_metadata_raises(tmp_path: Path) -> None:
@@ -237,3 +269,10 @@ def test_read_chunk_missing_metadata_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="missing required footer metadata"):
         read_chunk(path)
+
+
+def test_empty_stream_produces_no_file(tmp_path: Path) -> None:
+    path = tmp_path / "empty.parquet"
+    count = write_source(iter([]), path, source="usgs_splib07")
+    assert count == 0
+    assert not path.exists()

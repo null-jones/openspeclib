@@ -109,15 +109,22 @@ jobs:
 
       - name: Package release artifacts
         run: |
-          # Full library archive
-          cd library && tar -czf ../openspeclib-${{ inputs.version }}.tar.gz . && cd ..
-
           # Catalog-only package for lightweight use
           cp library/catalog.json openspeclib-catalog-${{ inputs.version }}.json
 
-          # Compute checksums
-          sha256sum openspeclib-${{ inputs.version }}.tar.gz > checksums.txt
-          sha256sum openspeclib-catalog-${{ inputs.version }}.json >> checksums.txt
+          # Collect per-source Parquet files as flat release assets. Filenames
+          # are already unique by source (spectra/<source>.parquet), so no
+          # renaming is needed.
+          mkdir -p release-parquet
+          for f in library/spectra/*.parquet; do
+            cp "$f" "release-parquet/$(basename "$f")"
+          done
+
+          # Compute checksums for catalog + all parquet assets
+          sha256sum openspeclib-catalog-${{ inputs.version }}.json > checksums.txt
+          for f in release-parquet/*.parquet; do
+            sha256sum "$f" | sed "s|release-parquet/||" >> checksums.txt
+          done
 
       - name: Generate release notes
         id: notes
@@ -136,6 +143,12 @@ jobs:
               for info in catalog["sources"].values()
           )
 
+          parquet_assets = "\n".join(
+              f"- `{name}.parquet` — {info['spectrum_count']} spectra from {info['name']}"
+              for name, info in catalog["sources"].items()
+              if info["spectrum_count"] > 0
+          )
+
           notes = f"""## OpenSpecLib v{version}
 
           Amalgamated spectral library containing **{total} spectra** from the following sources:
@@ -144,38 +157,42 @@ jobs:
 
           ### Artifacts
 
-          - `openspeclib-{version}.tar.gz` — Full library (catalog + all spectral data chunks)
-          - `openspeclib-catalog-{version}.json` — Catalog only (metadata index, no spectral arrays)
-          - `checksums.txt` — SHA-256 checksums
+          - `openspeclib-catalog-{version}.json` — Catalog (metadata index, no spectral arrays)
+          - One Parquet file per source (row-grouped for partial HTTP Range reads):
+          {parquet_assets}
+          - `checksums.txt` — SHA-256 checksums for all of the above
 
           ### Usage
 
-          Download and extract the full library:
-          ```bash
-          tar -xzf openspeclib-{version}.tar.gz -C ./speclib
-          ```
-
-          Use just the catalog for lightweight metadata queries (JSON):
+          Read the catalog for metadata queries:
           ```python
-          import json
-          catalog = json.load(open("openspeclib-catalog-{version}.json"))
+          import json, urllib.request
+          url = "https://github.com/<owner>/<repo>/releases/download/v{version}/openspeclib-catalog-{version}.json"
+          catalog = json.load(urllib.request.urlopen(url))
           print(f"Total spectra: {{catalog['statistics']['total_spectra']}}")
           ```
 
-          Library chunks are **Apache Parquet (zstd-compressed)** with one row per spectrum
+          Per-source files are **Apache Parquet (zstd-compressed)** with one row per spectrum
           and dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`).
-          Read them directly with pyarrow:
+          Each source is a single file — category filtering is a column predicate, not a
+          file selection. Read directly from the release URL:
           ```python
-          import pyarrow.parquet as pq
-          table = pq.read_table("speclib/spectra/usgs_splib07/mineral.parquet")
-          print(table.schema)
+          import pyarrow.parquet as pq, pyarrow.fs as pafs
+          # pyarrow supports HTTP(S) sources; reads only the row groups matching your query
+          table = pq.read_table(
+              "https://github.com/<owner>/<repo>/releases/download/v{version}/usgs_splib07.parquet",
+              filters=[("material.category", "=", "mineral")],
+          )
           ```
 
-          Or query across chunks with DuckDB without loading anything into Python:
+          Or query with DuckDB directly over HTTP (httpfs extension reads Parquet footers
+          and row groups via Range requests, no full download):
           ```sql
+          INSTALL httpfs; LOAD httpfs;
           SELECT id, "material.name"
-          FROM 'speclib/spectra/**/*.parquet'
-          WHERE "spectral_data.wavelength_min" < 0.4;
+          FROM 'https://github.com/<owner>/<repo>/releases/download/v{version}/usgs_splib07.parquet'
+          WHERE "material.category" = 'mineral'
+            AND "spectral_data.wavelength_min" < 0.4;
           ```
 
           See [docs/data-structure.md](docs/data-structure.md) and
@@ -192,8 +209,8 @@ jobs:
           name: OpenSpecLib v${{ inputs.version }}
           body_path: release_notes.md
           files: |
-            openspeclib-${{ inputs.version }}.tar.gz
             openspeclib-catalog-${{ inputs.version }}.json
+            release-parquet/*.parquet
             checksums.txt
           draft: false
           prerelease: false

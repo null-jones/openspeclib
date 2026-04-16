@@ -146,14 +146,8 @@ def ingest(source: str, input_dir: Path, output: Path) -> None:
     type=click.Path(path_type=Path),
     help="Output directory for the master library.",
 )
-@click.option(
-    "--chunk-size",
-    default=5000,
-    type=int,
-    help="Maximum spectra per chunk file.",
-)
-def combine(input_dir: Path, output: Path, chunk_size: int) -> None:
-    """Combine processed sources into a master library."""
+def combine(input_dir: Path, output: Path) -> None:
+    """Combine processed sources into a master library (one Parquet per source)."""
     from openspeclib.combine import build_library
     from openspeclib.models import SourceInfo, SpectrumRecord
 
@@ -188,7 +182,7 @@ def combine(input_dir: Path, output: Path, chunk_size: int) -> None:
         )
 
     click.echo(f"Combining {len(record_streams)} source(s) into {output}...")
-    catalog = build_library(record_streams, source_metadata, output, chunk_size)
+    catalog = build_library(record_streams, source_metadata, output)
     click.echo(
         f"Built library: {catalog.statistics.total_spectra} spectra, "
         f"{len(catalog.sources)} source(s)"

@@ -4,7 +4,7 @@
 
 The OpenSpecLib unified data structure provides a standardized representation for spectral measurements originating from heterogeneous source libraries. The design prioritizes readability, interoperability, and discoverability while preserving the full fidelity of source data.
 
-This document constitutes the formal specification for the OpenSpecLib schema. The catalog conforms to the JSON Schema definitions in `schemas/`; library chunk files conform to the canonical Arrow schema documented in `schemas/library.parquet-schema.md`.
+This document constitutes the formal specification for the OpenSpecLib schema. The catalog conforms to the JSON Schema definitions in `schemas/`; per-source library files conform to the canonical Arrow schema documented in `schemas/library.parquet-schema.md`.
 
 ## Architecture
 
@@ -14,34 +14,25 @@ The master library employs a two-tier architecture designed to balance accessibi
 
 The catalog serves as the primary discovery and search index. It contains complete metadata for every spectrum in the library but excludes raw spectral data arrays (wavelengths, values, and bandpass). This keeps the catalog sufficiently compact (tens of megabytes) to load into memory for interactive querying.
 
-Each catalog entry includes a `chunk_file` reference that identifies the library chunk file containing the corresponding full spectral data.
+Each catalog entry includes a `chunk_file` reference that identifies the per-source Parquet file containing the corresponding full spectral data.
 
-### Tier 2: Library Chunks (`spectra/{source}/{category}.parquet`)
+### Tier 2: Per-source Parquet files (`spectra/{source}.parquet`)
 
-Spectral data is partitioned into chunk files organized by source library and material category. Each chunk file contains complete spectrum records including raw data arrays. Chunks are stored as [Apache Parquet](https://parquet.apache.org/) with [zstd](https://facebook.github.io/zstd/) compression — one row per spectrum, with nested Pydantic models flattened to dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`). The full column reference and querying examples live in `schemas/library.parquet-schema.md`.
+Spectral data is stored as one [Apache Parquet](https://parquet.apache.org/) file per source library, [zstd](https://facebook.github.io/zstd/)-compressed, with one row per spectrum and nested Pydantic models flattened to dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`). Partial reads are handled inside each file via Parquet row groups — Parquet readers (DuckDB, Polars, pyarrow, duckdb-wasm, hyparquet) fetch only the footer plus the row groups matching your predicate, so category-style filtering is just a column predicate and there's no file-count explosion for large sources. The full column reference and querying examples live in `schemas/library.parquet-schema.md`.
 
 ```
 library/
 ├── catalog.json
 ├── VERSION
 └── spectra/
-    ├── usgs_splib07/
-    │   ├── mineral.parquet
-    │   ├── rock.parquet
-    │   └── vegetation.parquet
-    ├── ecostress/
-    │   ├── mineral.parquet
-    │   └── vegetation.parquet
-    ├── relab/
-    │   ├── mineral.parquet
-    │   └── meteorite.parquet
-    ├── asu_tes/
-    │   └── mineral.parquet
-    └── bishop/
-        └── mineral.parquet
+    ├── usgs_splib07.parquet
+    ├── ecostress.parquet
+    ├── relab.parquet
+    ├── asu_tes.parquet
+    └── bishop.parquet
 ```
 
-Chunk-level metadata (`openspeclib_version`, `source`, `category`, `spectrum_count`) is stored in the Parquet file's footer key-value metadata so it round-trips back into the in-memory `LibraryChunkFile` representation without per-row duplication.
+File-level metadata (`openspeclib_version`, `source`) is stored in the Parquet file's footer key-value metadata. The row count is read from Parquet's native `num_rows`, not a separate footer key, so the two can never drift.
 
 ## Spectrum Record
 
@@ -169,33 +160,38 @@ Schemas are provided in `schemas/`:
 
 - **`catalog.schema.json`** — JSON Schema (Draft 2020-12) for `catalog.json`.
 - **`spectrum.schema.json`** — JSON Schema (Draft 2020-12) for the in-memory `SpectrumRecord` shape (useful for validating any JSONified record, e.g. the `.jsonl` files emitted by `openspeclib ingest`).
-- **`library.arrow.schema.json`** — Machine-readable dump of the canonical Arrow schema used for library chunk Parquet files (column names, types, nullability, footer metadata keys).
-- **`library.parquet-schema.md`** — Human-readable column reference and querying examples (DuckDB / Polars / pandas / pyarrow) for chunk files.
+- **`library.arrow.schema.json`** — Machine-readable dump of the canonical Arrow schema used for per-source Parquet files (column names, types, nullability, footer metadata keys).
+- **`library.parquet-schema.md`** — Human-readable column reference and querying examples (DuckDB / Polars / pandas / pyarrow) for per-source files.
 
 The JSON Schemas and the Arrow schema dump are programmatically generated from the authoritative Pydantic models in `src/openspeclib/models.py` and the `ARROW_SCHEMA` defined in `src/openspeclib/storage.py` (see `scripts/generate_schemas.py`).
 
-## Querying chunk files
+## Querying per-source files
 
-Because chunks are Parquet, downstream consumers can issue predicate-pushdown queries directly without loading entire files into memory:
+Because files are Parquet, downstream consumers can issue predicate-pushdown queries directly without loading entire files into memory:
 
 ```sql
--- DuckDB: count spectra by category in a single chunk
+-- DuckDB: count spectra by category in a single source
 SELECT "material.category", COUNT(*) AS n
-FROM 'library/spectra/usgs_splib07/mineral.parquet'
+FROM 'library/spectra/usgs_splib07.parquet'
 GROUP BY "material.category";
 ```
 
 ```python
 # Polars: scan and filter
 import polars as pl
-lf = pl.scan_parquet("library/spectra/usgs_splib07/mineral.parquet")
-df = lf.filter(pl.col("spectral_data.wavelength_min") < 0.4).collect()
+lf = pl.scan_parquet("library/spectra/usgs_splib07.parquet")
+df = (
+    lf.filter(pl.col("material.category") == "mineral")
+      .filter(pl.col("spectral_data.wavelength_min") < 0.4)
+      .collect()
+)
 ```
 
 ```python
 # Round-trip back to Pydantic
+from pathlib import Path
 from openspeclib.storage import read_chunk
-chunk = read_chunk(Path("library/spectra/usgs_splib07/mineral.parquet"))
+chunk = read_chunk(Path("library/spectra/usgs_splib07.parquet"))
 ```
 
 See `schemas/library.parquet-schema.md` for the full reference.

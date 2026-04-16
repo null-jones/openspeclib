@@ -1,10 +1,16 @@
-# OpenSpecLib Library Chunk File — Parquet Schema
+# OpenSpecLib Source Library File — Parquet Schema
 
-Library chunk files (`spectra/{source}/{category}.parquet`) are stored as
-[Apache Parquet](https://parquet.apache.org/) with [zstd](https://facebook.github.io/zstd/)
-compression. One row per spectrum. Nested Pydantic models are flattened to
+Each source library is stored as a single
+[Apache Parquet](https://parquet.apache.org/) file at
+`spectra/{source}.parquet` with [zstd](https://facebook.github.io/zstd/)
+compression, one row per spectrum. Nested Pydantic models are flattened to
 dot-separated columns for clean queryability in DuckDB / Polars / pandas /
 pyarrow.
+
+Row groups inside each file give partial-read granularity — a Parquet reader
+over HTTP only fetches the footer plus the row groups matching your predicate
+via Range requests, so there's no need to split sources into multiple files by
+category.
 
 The machine-readable schema is `library.arrow.schema.json` (auto-generated
 from `openspeclib.storage.ARROW_SCHEMA`). This document is the human-readable
@@ -14,24 +20,23 @@ companion.
 
 ## File-level (footer) metadata
 
-Every chunk file carries the following key-value pairs in its Parquet footer
-metadata. They are the four chunk-level fields that previously lived at the
-top of the JSON chunk file, and they round-trip into `LibraryChunkFile`
-without per-row duplication.
+Every source file carries the following key-value pairs in its Parquet footer
+metadata. The spectrum count is intentionally *not* in the footer — Parquet's
+native `num_rows` is authoritative and can never drift from the actual row
+count.
 
 | Key                  | Value                                       |
 | -------------------- | ------------------------------------------- |
 | `openspeclib_version` | OpenSpecLib version that produced the file |
 | `source`              | Source library identifier (e.g. `usgs_splib07`) |
-| `category`            | Material category or chunk label           |
-| `spectrum_count`      | Number of rows / spectra in the chunk      |
 
 Read with:
 
 ```python
 import pyarrow.parquet as pq
-metadata = pq.read_schema("speclib/spectra/usgs_splib07/mineral.parquet").metadata
-print(metadata[b"source"])  # b"usgs_splib07"
+pf = pq.ParquetFile("speclib/spectra/usgs_splib07.parquet")
+print(pf.schema_arrow.metadata[b"source"])  # b"usgs_splib07"
+print(pf.metadata.num_rows)                  # total spectra in this source
 ```
 
 ---
@@ -50,7 +55,7 @@ print(metadata[b"source"])  # b"usgs_splib07"
 | `source.license`                  | utf8            | no       |                                                            |
 | `source.citation`                 | utf8            | no       |                                                            |
 | `material.name`                   | utf8            | no       |                                                            |
-| `material.category`               | utf8            | no       | Material category enum value                               |
+| `material.category`               | utf8            | no       | Material category enum value — filter on this for category queries |
 | `material.subcategory`            | utf8            | yes      |                                                            |
 | `material.formula`                | utf8            | yes      |                                                            |
 | `material.keywords`               | list&lt;utf8&gt;       | no       | Searchable terms                                           |
@@ -83,34 +88,45 @@ print(metadata[b"source"])  # b"usgs_splib07"
 
 ---
 
-## Querying chunks
+## Querying source files
 
 ### DuckDB (recommended for ad-hoc analytics)
 
 ```sql
--- Count spectra by category in a single chunk
+-- Count spectra by category in one source
 SELECT "material.category", COUNT(*) AS n
-FROM 'speclib/spectra/usgs_splib07/mineral.parquet'
+FROM 'speclib/spectra/usgs_splib07.parquet'
 GROUP BY "material.category"
 ORDER BY n DESC;
 
--- Find spectra covering the visible range across all chunks
+-- Only minerals in the visible range
 SELECT id, name, "spectral_data.wavelength_min", "spectral_data.wavelength_max"
-FROM 'speclib/spectra/**/*.parquet'
-WHERE "spectral_data.wavelength_min" <= 0.4
+FROM 'speclib/spectra/usgs_splib07.parquet'
+WHERE "material.category" = 'mineral'
+  AND "spectral_data.wavelength_min" <= 0.4
   AND "spectral_data.wavelength_max" >= 0.7;
+
+-- Union across sources with a glob
+SELECT id, "source.library", "material.name"
+FROM 'speclib/spectra/*.parquet'
+WHERE "material.category" = 'rock';
 ```
 
 DuckDB pushes predicates down to Parquet so only the matching row groups are
-read.
+read — even when the source is served over HTTP (via `INSTALL httpfs; LOAD
+httpfs;`).
 
 ### Polars
 
 ```python
 import polars as pl
 
-lf = pl.scan_parquet("speclib/spectra/usgs_splib07/mineral.parquet")
-df = lf.filter(pl.col("spectral_data.wavelength_min") < 0.4).collect()
+lf = pl.scan_parquet("speclib/spectra/usgs_splib07.parquet")
+df = (
+    lf.filter(pl.col("material.category") == "mineral")
+      .filter(pl.col("spectral_data.wavelength_min") < 0.4)
+      .collect()
+)
 print(df.select(["id", "name", "material.formula"]))
 ```
 
@@ -120,34 +136,42 @@ print(df.select(["id", "name", "material.formula"]))
 import pandas as pd
 
 df = pd.read_parquet(
-    "speclib/spectra/usgs_splib07/mineral.parquet",
+    "speclib/spectra/usgs_splib07.parquet",
     columns=["id", "name", "material.category", "spectral_data.wavelengths",
              "spectral_data.values"],
+    filters=[("material.category", "=", "mineral")],
 )
 ```
 
-### pyarrow (lowest-level, fastest for full-chunk reads)
+### pyarrow (lowest-level, fastest for full-source reads)
 
 ```python
 import pyarrow.parquet as pq
 
-table = pq.read_table("speclib/spectra/usgs_splib07/mineral.parquet")
-print(table.schema)
-print(pq.read_schema(table.schema_arrow.metadata))
+pf = pq.ParquetFile("speclib/spectra/usgs_splib07.parquet")
+print(pf.metadata.num_rows, "spectra in", pf.schema_arrow.metadata[b"source"])
+# Read only the first row group
+table = pf.read_row_group(0)
 ```
 
-### Reconstructing Pydantic records
+### Streaming row-by-row (any source size)
 
-If you want strongly-typed `SpectrumRecord` / `LibraryChunkFile` objects in
-Python, use the storage helper rather than rebuilding the deserialisation
-yourself:
+```python
+from pathlib import Path
+from openspeclib.storage import iter_records
+
+for spectrum in iter_records(Path("speclib/spectra/usgs_splib07.parquet")):
+    print(spectrum.id, spectrum.material.name)
+```
+
+### Reconstructing the whole source as Pydantic records
 
 ```python
 from pathlib import Path
 from openspeclib.storage import read_chunk
 
-chunk = read_chunk(Path("speclib/spectra/usgs_splib07/mineral.parquet"))
-print(chunk.spectrum_count, "spectra")
+chunk = read_chunk(Path("speclib/spectra/usgs_splib07.parquet"))
+print(chunk.spectrum_count, "spectra from", chunk.source)
 for spectrum in chunk.spectra[:3]:
     print(spectrum.id, spectrum.material.name)
 ```

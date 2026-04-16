@@ -234,7 +234,7 @@ def _check_enum_values(catalog: CatalogFile, result: ValidationResult) -> None:
 def _validate_chunk_files(
     catalog: CatalogFile, library_dir: Path, result: ValidationResult
 ) -> None:
-    """Validate the content of each chunk file.
+    """Validate the content of each per-source Parquet file.
 
     Args:
         catalog: The parsed catalog whose chunk references to validate.
@@ -261,13 +261,6 @@ def _validate_chunk_files(
         except Exception as e:
             result.errors.append(f"Chunk '{chunk_file}' parse error: {e}")
             continue
-
-        # Check declared count matches actual
-        if chunk.spectrum_count != len(chunk.spectra):
-            result.errors.append(
-                f"Chunk '{chunk_file}': declared count ({chunk.spectrum_count}) "
-                f"!= actual ({len(chunk.spectra)})"
-            )
 
         # Verify each spectrum in the chunk has a catalog entry
         for spectrum in chunk.spectra:

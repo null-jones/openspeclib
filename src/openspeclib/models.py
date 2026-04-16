@@ -288,10 +288,9 @@ class CatalogFile(BaseModel):
 
 
 class LibraryChunkFile(BaseModel):
-    """Top-level structure of a library chunk file (spectra/{source}/{category}.json)."""
+    """In-memory representation of a source library Parquet file (spectra/{source}.parquet)."""
 
     openspeclib_version: str = Field(description="Version of the OpenSpecLib schema.")
-    source: str = Field(description="Source library identifier for this chunk.")
-    category: str = Field(description="Material category or chunk label.")
-    spectrum_count: int = Field(ge=0, description="Number of spectra in this chunk.")
+    source: str = Field(description="Source library identifier for this file.")
+    spectrum_count: int = Field(ge=0, description="Number of spectra in this file.")
     spectra: list[SpectrumRecord] = Field(description="Full spectrum records.")

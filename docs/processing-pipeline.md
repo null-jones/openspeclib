@@ -113,18 +113,17 @@ The ingest stage writes one JSONL (JSON Lines) file per source to the output dir
 ## Stage 3: Combine
 
 ```bash
-openspeclib combine --input ./processed/ --output ./library/ [--chunk-size 5000]
+openspeclib combine --input ./processed/ --output ./library/
 ```
 
 The combiner reads all JSONL files from the processed directory and constructs the master library:
 
-1. **Partition spectra** into chunk files by source and material category.
-2. **Enforce chunk size limits** — when a category exceeds the chunk size threshold (default: 5,000 spectra), records are distributed across multiple numbered chunk files.
-3. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (the relative path of the `.parquet` chunk).
-4. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
-5. **Write output files** — `catalog.json` (JSON), chunk files under `spectra/` as **Parquet (zstd-compressed)** with one row per spectrum, and `VERSION`.
+1. **Emit one Parquet file per source** at `spectra/{source}.parquet`. Records are streamed through `pyarrow.parquet.ParquetWriter` so memory usage is bounded regardless of source size. Inside each file, Parquet row groups (default 1,000 spectra per group) give readers partial-read granularity — category filtering is a column predicate, not a file selection.
+2. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (`spectra/{source}.parquet`).
+3. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
+4. **Write output files** — `catalog.json` (JSON), per-source `.parquet` files under `spectra/` (zstd-compressed, one row per spectrum), and `VERSION`.
 
-Chunk-level metadata (`openspeclib_version`, `source`, `category`, `spectrum_count`) is written into the Parquet file's footer key-value metadata. See `schemas/library.parquet-schema.md` for the full column reference.
+File-level metadata (`openspeclib_version`, `source`) is written into the Parquet footer key-value metadata; the spectrum count is read from Parquet's native `num_rows`. See `schemas/library.parquet-schema.md` for the full column reference.
 
 ## Stage 4: Validate
 

@@ -1,7 +1,8 @@
 """Combiner: merges processed spectral sources into a master library.
 
 Orchestrates the full pipeline of loading records from each source,
-partitioning them into chunk files, and building the catalog index.
+writing one Parquet file per source (with row-group-based partial reads),
+and building the catalog index.
 """
 
 import logging
@@ -21,45 +22,29 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CHUNK_SIZE = 5000
-
-
-def _write_chunk(
-    records: list[SpectrumRecord],
-    output_path: Path,
-    source_name: str,
-    category_label: str,
-) -> None:
-    """Write a list of spectrum records to a Parquet library chunk file.
-
-    Args:
-        records: Spectrum records to include in the chunk.
-        output_path: Destination Parquet file path.
-        source_name: Source library identifier (stored in footer metadata).
-        category_label: Material category or chunk label (stored in footer metadata).
-    """
-    storage.write_chunk(records, output_path, source=source_name, category=category_label)
-
 
 def build_library(
     record_streams: dict[str, Iterator[SpectrumRecord]],
     source_metadata: dict[str, SourceInfo],
     output_dir: Path,
-    chunk_size: int = DEFAULT_CHUNK_SIZE,
 ) -> CatalogFile:
     """Build the master library from multiple record streams.
+
+    Each source produces a single Parquet file at
+    ``spectra/<source>.parquet``. Row groups inside the file give
+    downstream consumers partial-read granularity via HTTP Range requests.
 
     Args:
         record_streams: Mapping of source name to an iterator of SpectrumRecord.
         source_metadata: Mapping of source name to SourceInfo.
         output_dir: Root directory for the output library.
-        chunk_size: Maximum spectra per chunk file (for large sources).
 
     Returns:
         The completed CatalogFile object.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
     spectra_dir = output_dir / "spectra"
+    spectra_dir.mkdir(parents=True, exist_ok=True)
 
     catalog_entries: list[CatalogRecord] = []
     source_counts: dict[str, int] = defaultdict(int)
@@ -67,54 +52,28 @@ def build_library(
 
     for source_name, records in record_streams.items():
         logger.info("Processing source: %s", source_name)
-        source_dir = spectra_dir / source_name
-        source_dir.mkdir(parents=True, exist_ok=True)
+        chunk_rel_path = f"spectra/{source_name}.parquet"
+        chunk_path = output_dir / chunk_rel_path
 
-        # Buffer records by category for chunking
-        buffers: dict[str, list[SpectrumRecord]] = defaultdict(list)
-        chunk_counters: dict[str, int] = defaultdict(int)
+        def _tee(stream: Iterator[SpectrumRecord], name: str) -> Iterator[SpectrumRecord]:
+            """Forward records to the Parquet writer while also building catalog entries.
 
-        for record in records:
-            cat = record.material.category.value
-            buffers[cat].append(record)
-            source_counts[source_name] += 1
-            category_counts[cat] += 1
+            Args:
+                stream: Upstream iterator of ``SpectrumRecord``.
+                name: Source identifier used to key counters.
 
-            # Flush buffer if it reaches chunk_size
-            if len(buffers[cat]) >= chunk_size:
-                chunk_idx = chunk_counters[cat]
-                chunk_label = f"{cat}_chunk_{chunk_idx:03d}"
-                chunk_path = source_dir / f"{chunk_label}.parquet"
-                rel_path = f"spectra/{source_name}/{chunk_label}.parquet"
+            Yields:
+                Each record, unchanged.
+            """
+            for record in stream:
+                catalog_entries.append(
+                    CatalogRecord.from_spectrum(record, chunk_file=chunk_rel_path)
+                )
+                source_counts[name] += 1
+                category_counts[record.material.category.value] += 1
+                yield record
 
-                _write_chunk(buffers[cat], chunk_path, source_name, chunk_label)
-
-                for rec in buffers[cat]:
-                    catalog_entries.append(CatalogRecord.from_spectrum(rec, chunk_file=rel_path))
-
-                buffers[cat] = []
-                chunk_counters[cat] += 1
-
-        # Flush remaining buffers
-        for cat, remaining in buffers.items():
-            if not remaining:
-                continue
-
-            if chunk_counters[cat] > 0:
-                # Continuation of a chunked category
-                chunk_idx = chunk_counters[cat]
-                chunk_label = f"{cat}_chunk_{chunk_idx:03d}"
-            else:
-                # Small enough for a single file
-                chunk_label = cat
-
-            chunk_path = source_dir / f"{chunk_label}.parquet"
-            rel_path = f"spectra/{source_name}/{chunk_label}.parquet"
-
-            _write_chunk(remaining, chunk_path, source_name, chunk_label)
-
-            for rec in remaining:
-                catalog_entries.append(CatalogRecord.from_spectrum(rec, chunk_file=rel_path))
+        storage.write_source(_tee(records, source_name), chunk_path, source=source_name)
 
     # Update source metadata with actual counts
     for name, info in source_metadata.items():

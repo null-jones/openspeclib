@@ -1,15 +1,20 @@
-"""Parquet-backed storage layer for OpenSpecLib library chunk files.
+"""Parquet-backed storage layer for OpenSpecLib source library files.
 
-Chunks are written as Parquet files with one row per spectrum. Nested
+Each source produces a single Parquet file with one row per spectrum. Nested
 Pydantic models are flattened to dot-separated columns (e.g.
 ``material.name``, ``spectral_data.wavelength_min``) for clean queryability
 in DuckDB / Polars / pandas. The ``additional_properties`` ``dict[str, Any]``
 field is serialised to a single JSON utf8 column.
 
-Chunk-level metadata (``openspeclib_version``, ``source``, ``category``,
-``spectrum_count``) is stored in the Parquet file's footer key-value
-metadata so it round-trips back into ``LibraryChunkFile`` without
-duplication on every row.
+Row groups are the natural unit of partial reads: setting a modest
+``row_group_size`` (default 1000 spectra per group) lets downstream readers
+fetch only the row groups that satisfy a predicate via HTTP Range requests,
+so we no longer need to split sources into multiple files by category.
+
+File-level metadata (``openspeclib_version`` and ``source``) is stored in
+the Parquet footer key-value metadata. The spectrum count is derived from
+Parquet's native ``num_rows`` on read, so there's no second key to keep in
+sync with the actual row count.
 """
 
 from __future__ import annotations
@@ -17,6 +22,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import logging
+from collections.abc import Iterable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -36,6 +42,11 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
+# Default row group size. Small enough that a Range-based reader fetches
+# only a few MB per predicate, large enough that per-row-group overhead
+# is negligible.
+DEFAULT_ROW_GROUP_SIZE = 1000
+
 
 # ---------------------------------------------------------------------------
 # Canonical Arrow schema
@@ -43,7 +54,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_arrow_schema() -> pa.Schema:
-    """Construct the canonical Arrow schema for chunk files.
+    """Construct the canonical Arrow schema for source library files.
 
     Returns:
         The ``pa.Schema`` describing one spectrum per row, with the
@@ -103,11 +114,10 @@ def _build_arrow_schema() -> pa.Schema:
 
 ARROW_SCHEMA: pa.Schema = _build_arrow_schema()
 
-# Footer metadata keys (chunk-level fields from LibraryChunkFile)
+# Footer metadata keys. spectrum_count is intentionally omitted — Parquet's
+# native num_rows is authoritative.
 _META_VERSION = b"openspeclib_version"
 _META_SOURCE = b"source"
-_META_CATEGORY = b"category"
-_META_SPECTRUM_COUNT = b"spectrum_count"
 
 
 # ---------------------------------------------------------------------------
@@ -223,20 +233,17 @@ def _json_default(value: Any) -> Any:
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serialisable")
 
 
-def _table_to_records(table: pa.Table, footer_metadata: dict[bytes, bytes]) -> LibraryChunkFile:
-    """Reconstruct a LibraryChunkFile from a pyarrow Table and footer metadata.
+def _rows_to_records(rows: list[dict[str, Any]]) -> list[SpectrumRecord]:
+    """Convert dict-of-columns rows back into a list of SpectrumRecord.
 
     Args:
-        table: The Parquet table containing one row per spectrum.
-        footer_metadata: Raw key-value metadata from the Parquet footer.
+        rows: Row dicts from ``pa.Table.to_pylist()``.
 
     Returns:
-        The fully-populated ``LibraryChunkFile``.
+        The reconstructed list of ``SpectrumRecord``.
     """
-    py = table.to_pylist()
     records: list[SpectrumRecord] = []
-
-    for row in py:
+    for row in rows:
         records.append(
             SpectrumRecord(
                 id=row["id"],
@@ -297,14 +304,7 @@ def _table_to_records(table: pa.Table, footer_metadata: dict[bytes, bytes]) -> L
                 ),
             )
         )
-
-    return LibraryChunkFile(
-        openspeclib_version=footer_metadata[_META_VERSION].decode("utf-8"),
-        source=footer_metadata[_META_SOURCE].decode("utf-8"),
-        category=footer_metadata[_META_CATEGORY].decode("utf-8"),
-        spectrum_count=int(footer_metadata[_META_SPECTRUM_COUNT].decode("utf-8")),
-        spectra=records,
-    )
+    return records
 
 
 # ---------------------------------------------------------------------------
@@ -312,40 +312,101 @@ def _table_to_records(table: pa.Table, footer_metadata: dict[bytes, bytes]) -> L
 # ---------------------------------------------------------------------------
 
 
-def write_chunk(
-    records: list[SpectrumRecord],
+def write_source(
+    records: Iterable[SpectrumRecord],
     path: Path,
     source: str,
-    category: str,
-) -> None:
-    """Write a list of spectrum records to a Parquet chunk file.
+    row_group_size: int = DEFAULT_ROW_GROUP_SIZE,
+) -> int:
+    """Stream spectrum records into a single Parquet file for one source.
+
+    Records are written in batches of ``row_group_size``, producing one
+    Parquet row group per batch. This lets downstream readers fetch only the
+    row groups they need via HTTP Range requests, so the file can scale to
+    the full source library without forcing consumers to download it whole.
 
     Args:
-        records: Spectrum records to include in the chunk.
-        path: Destination file path (typically with a ``.parquet`` extension).
+        records: Iterable of spectrum records for a single source.
+        path: Destination Parquet file path.
         source: Source library identifier (stored in footer metadata).
-        category: Material category or chunk label (stored in footer metadata).
+        row_group_size: Maximum spectra per Parquet row group.
+
+    Returns:
+        The total number of spectra written.
     """
     from openspeclib import __version__
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    table = _records_to_table(records)
-    footer_metadata = {
-        _META_VERSION: __version__.encode("utf-8"),
-        _META_SOURCE: source.encode("utf-8"),
-        _META_CATEGORY: category.encode("utf-8"),
-        _META_SPECTRUM_COUNT: str(len(records)).encode("utf-8"),
-    }
-    table = table.replace_schema_metadata(footer_metadata)
-    pq.write_table(table, path, compression="zstd")
-    logger.info("Wrote %d spectra to %s", len(records), path)
+
+    # Attach footer metadata up front on the schema so the streaming writer
+    # embeds it in the file footer — no rewrite pass needed.
+    schema_with_metadata = ARROW_SCHEMA.with_metadata(
+        {
+            _META_VERSION: __version__.encode("utf-8"),
+            _META_SOURCE: source.encode("utf-8"),
+        }
+    )
+
+    total = 0
+    writer: pq.ParquetWriter | None = None
+    try:
+        buffer: list[SpectrumRecord] = []
+        for record in records:
+            buffer.append(record)
+            if len(buffer) >= row_group_size:
+                writer = _write_batch(writer, path, buffer, schema_with_metadata)
+                total += len(buffer)
+                buffer = []
+        if buffer:
+            writer = _write_batch(writer, path, buffer, schema_with_metadata)
+            total += len(buffer)
+    finally:
+        if writer is not None:
+            writer.close()
+
+    if total == 0:
+        # No records produced — don't leave an empty file behind.
+        path.unlink(missing_ok=True)
+        logger.warning("No records written for source %s; skipping %s", source, path)
+        return 0
+
+    logger.info("Wrote %d spectra for %s to %s", total, source, path)
+    return total
+
+
+def _write_batch(
+    writer: pq.ParquetWriter | None,
+    path: Path,
+    batch: list[SpectrumRecord],
+    schema: pa.Schema,
+) -> pq.ParquetWriter:
+    """Convert a batch of records to a Table and append it as one row group.
+
+    Args:
+        writer: Existing ParquetWriter, or ``None`` on the first batch.
+        path: Destination file path (used to open the writer on first call).
+        batch: Records to flush as a single row group.
+        schema: Arrow schema (with attached footer metadata) to pass to
+            the writer on first open.
+
+    Returns:
+        The active ``pq.ParquetWriter``.
+    """
+    table = _records_to_table(batch).replace_schema_metadata(schema.metadata)
+    if writer is None:
+        writer = pq.ParquetWriter(path, schema, compression="zstd")
+    writer.write_table(table)
+    return writer
 
 
 def read_chunk(path: Path) -> LibraryChunkFile:
-    """Read a Parquet chunk file back into a LibraryChunkFile.
+    """Read a Parquet source library file back into a LibraryChunkFile.
+
+    The spectrum count is read from Parquet's native row count rather than
+    a footer key, so the two can never drift.
 
     Args:
-        path: Path to the Parquet chunk file.
+        path: Path to the Parquet file.
 
     Returns:
         The reconstructed ``LibraryChunkFile``.
@@ -353,20 +414,44 @@ def read_chunk(path: Path) -> LibraryChunkFile:
     Raises:
         ValueError: If the file is missing required footer metadata keys.
     """
-    table = pq.read_table(path)
-    raw_metadata = table.schema.metadata or {}
-    required_keys = (_META_VERSION, _META_SOURCE, _META_CATEGORY, _META_SPECTRUM_COUNT)
+    pf = pq.ParquetFile(path)
+    raw_metadata = pf.schema_arrow.metadata or {}
+    required_keys = (_META_VERSION, _META_SOURCE)
     missing = [k.decode("utf-8") for k in required_keys if k not in raw_metadata]
     if missing:
         raise ValueError(f"Chunk file {path} is missing required footer metadata keys: {missing}")
-    return _table_to_records(table, dict(raw_metadata))
+
+    table = pf.read()
+    records = _rows_to_records(table.to_pylist())
+    return LibraryChunkFile(
+        openspeclib_version=raw_metadata[_META_VERSION].decode("utf-8"),
+        source=raw_metadata[_META_SOURCE].decode("utf-8"),
+        spectrum_count=pf.metadata.num_rows,
+        spectra=records,
+    )
+
+
+def iter_records(path: Path, batch_size: int = 1000) -> Iterator[SpectrumRecord]:
+    """Stream records from a source Parquet file without loading it all into memory.
+
+    Args:
+        path: Path to the Parquet file.
+        batch_size: Number of rows to buffer per read.
+
+    Yields:
+        ``SpectrumRecord`` instances in file order.
+    """
+    pf = pq.ParquetFile(path)
+    for batch in pf.iter_batches(batch_size=batch_size):
+        table = pa.Table.from_batches([batch], schema=pf.schema_arrow)
+        yield from _rows_to_records(table.to_pylist())
 
 
 def validate_parquet_schema(path: Path) -> list[str]:
     """Verify that a Parquet file's schema matches the canonical ARROW_SCHEMA.
 
     Args:
-        path: Path to the Parquet chunk file to validate.
+        path: Path to the Parquet file to validate.
 
     Returns:
         A list of error strings describing any schema drift; empty if valid.

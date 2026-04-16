@@ -20,11 +20,9 @@ import pyarrow as pa
 
 from openspeclib.models import CatalogFile, SpectrumRecord
 from openspeclib.storage import (
-    ARROW_SCHEMA,
-    _META_CATEGORY,
     _META_SOURCE,
-    _META_SPECTRUM_COUNT,
     _META_VERSION,
+    ARROW_SCHEMA,
 )
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
@@ -63,8 +61,6 @@ def write_arrow_schema(filename: str) -> None:
         "footer_metadata_keys": [
             _META_VERSION.decode("utf-8"),
             _META_SOURCE.decode("utf-8"),
-            _META_CATEGORY.decode("utf-8"),
-            _META_SPECTRUM_COUNT.decode("utf-8"),
         ],
         "columns": columns,
     }

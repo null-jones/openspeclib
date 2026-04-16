@@ -3,9 +3,7 @@
   "compression": "zstd",
   "footer_metadata_keys": [
     "openspeclib_version",
-    "source",
-    "category",
-    "spectrum_count"
+    "source"
   ],
   "columns": [
     {

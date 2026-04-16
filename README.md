@@ -52,19 +52,20 @@ print(f"Sources: {list(catalog['sources'].keys())}")
 olivine = [s for s in catalog["spectra"] if "olivine" in s["name"].lower()]
 print(f"Found {len(olivine)} olivine spectra")
 
-# Chunk files are Parquet — load the referenced chunk and find the row
+# Per-source Parquet files — load the one the catalog points at and find the row
 table = pq.read_table(olivine[0]["chunk_file"])
 mask = [row_id == olivine[0]["id"] for row_id in table.column("id").to_pylist()]
 row = table.filter(mask).to_pylist()[0]
 print(f"Wavelengths: {row['spectral_data.wavelengths'][:5]}...")
 ```
 
-For ad-hoc analytics, query Parquet chunks directly with DuckDB without loading them into Python:
+For ad-hoc analytics, query the Parquet files directly with DuckDB without loading them into Python. Category filtering is a column predicate — no file-partitioning needed:
 
 ```sql
 SELECT id, name, "material.formula"
-FROM 'spectra/usgs_splib07/mineral.parquet'
-WHERE "spectral_data.wavelength_min" < 0.4;
+FROM 'spectra/usgs_splib07.parquet'
+WHERE "material.category" = 'mineral'
+  AND "spectral_data.wavelength_min" < 0.4;
 ```
 
 See [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the full column reference.
