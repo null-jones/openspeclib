@@ -101,9 +101,9 @@ function InfoModal({ onClose }: { onClose: () => void }) {
           <div>
             <h3 className="font-semibold text-gray-900 mb-1">Data Sources</h3>
             <p className="text-gray-600">
-              Currently includes spectra from <strong>USGS Spectral Library Version 7</strong>.
-              Additional sources (ECOSTRESS, RELAB, ASU TES, Bishop) will be available in
-              future releases.
+              Currently includes spectra from <strong>USGS Spectral Library v7</strong>,{' '}
+              <strong>ECOSTRESS</strong>, and <strong>EcoSIS</strong>. Additional sources
+              (RELAB, ASU TES, Bishop) are planned for future releases.
             </p>
           </div>
 
@@ -129,9 +129,9 @@ function InfoModal({ onClose }: { onClose: () => void }) {
           <div className="pt-2 border-t border-gray-100 text-xs text-gray-400">
             <p>
               Built with React, DuckDB-WASM, and Plotly.js. Data from{' '}
-              <a href="https://github.com/null-jones/openspeclib/releases/tag/v0.0.4" target="_blank" rel="noopener noreferrer"
+              <a href={`https://github.com/null-jones/openspeclib/releases/tag/v${OPENSPECLIB_VERSION}`} target="_blank" rel="noopener noreferrer"
                 className="text-indigo-500 hover:text-indigo-700">
-                OpenSpecLib v0.0.4
+                OpenSpecLib v{OPENSPECLIB_VERSION}
               </a>.
             </p>
           </div>

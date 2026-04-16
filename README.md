@@ -14,29 +14,49 @@ OpenSpecLib addresses this fragmentation by ingesting spectral data from multipl
 
 ## Source Libraries
 
+### Currently Included
+
+The following sources are ingested into the published master library (v0.0.5):
+
 | Source | Materials | Wavelength Range | Spectra |
 |---|---|---|---|
 | [USGS Spectral Library Version 7](https://doi.org/10.5066/F7RR1WDJ) | Minerals, rocks, soils, vegetation, water, man-made | 0.2 -- 200 um | ~2,500 |
 | [ECOSTRESS Spectral Library](https://speclib.jpl.nasa.gov) | Minerals, rocks, soils, vegetation, man-made, meteorites | 0.35 -- 15.4 um | ~3,400 |
+| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials (curated subset) | 350 -- 2500 nm | ~17,000 |
+
+**Total: ~22,900 spectra** across 3 source libraries.
+
+### Planned for Future Releases
+
+The following sources have loaders implemented but require manual data placement and are not yet bundled in releases:
+
+| Source | Materials | Wavelength Range | Spectra |
+|---|---|---|---|
 | [RELAB Spectral Database](https://sites.brown.edu/relab/) | Minerals, meteorites, lunar samples | 0.3 -- 26 um | ~3,000 |
 | [ASU Thermal Emission Spectral Library](https://speclib.asu.edu) | Rock-forming minerals (thermal IR) | 5 -- 45 um (2000 -- 220 cm-1) | ~800 |
 | [Bishop Spectral Library](https://dmp.seti.org/jbishop/spectral-library.html) | Carbonates, hydrated minerals, phyllosilicates | 0.3 -- 25 um | ~500 |
-| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials | 350 -- 2500 nm | ~17,000 |
 
-## Installation
-
-```bash
-pip install -e .
-
-# With development tools
-pip install -e ".[dev]"
-```
+See [docs/adding-sources.md](docs/adding-sources.md) for guidance on integrating additional libraries.
 
 ## Quick Start
 
-### Using a Published Release
+### Use the Web Viewer (no installation required)
 
-Download the latest release from [GitHub Releases](https://github.com/null-jones/openspeclib/releases):
+The fastest way to explore OpenSpecLib is the browser-based viewer:
+
+**[Open the OpenSpecLib Viewer](https://null-jones.github.io/openspeclib/)**
+
+Search, filter, plot, and export spectra directly in your browser. The viewer runs entirely client-side via DuckDB-WASM — no server required, no account needed. Features:
+
+- Full-text search across ~22,900 spectra from 3 source libraries
+- Filter by material category, source library, measurement technique, and wavelength range
+- Plot individual spectra or build a custom library
+- Simulate satellite-sensor downsampling (Sentinel-2, Landsat, WorldView-3, SuperDove, Wyvern, EnMAP, PRISMA, Tanager)
+- Export to CSV or ENVI `.sli/.hdr` format
+
+### Download a Release
+
+For programmatic use, download the latest release from [GitHub Releases](https://github.com/null-jones/openspeclib/releases):
 
 ```python
 import json
@@ -71,22 +91,29 @@ WHERE "material.category" = 'mineral'
 
 See [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the full column reference.
 
-### Building the Library Locally
+## Installation
 
 ```bash
-# Download source data
+pip install -e .
+
+# With development tools
+pip install -e ".[dev]"
+```
+
+### Building the Library Locally
+
+USGS, ECOSTRESS, and EcoSIS download automatically via the CLI. RELAB, ASU TES, and Bishop require manual data placement into the target directory before ingest.
+
+```bash
+# Download source data (auto-download for bundled sources)
 openspeclib download --source usgs --target ./raw/usgs
 openspeclib download --source ecostress --target ./raw/ecostress
-openspeclib download --source relab --target ./raw/relab
-openspeclib download --source asu_tes --target ./raw/asu_tes
-openspeclib download --source bishop --target ./raw/bishop
+openspeclib download --source ecosis --target ./raw/ecosis
 
 # Ingest each source
 openspeclib ingest --source usgs --input ./raw/usgs --output ./processed/
 openspeclib ingest --source ecostress --input ./raw/ecostress --output ./processed/
-openspeclib ingest --source relab --input ./raw/relab --output ./processed/
-openspeclib ingest --source asu_tes --input ./raw/asu_tes --output ./processed/
-openspeclib ingest --source bishop --input ./raw/bishop --output ./processed/
+openspeclib ingest --source ecosis --input ./raw/ecosis --output ./processed/
 
 # Combine into master library
 openspeclib combine --input ./processed/ --output ./library/
