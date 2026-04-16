@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAppContext } from '../../state/AppContext';
+import { OPENSPECLIB_VERSION } from '../../constants/urls';
 
 /** Inline header logo — openspeclib wordmark + spectral trace. */
 function Logo() {
@@ -128,9 +129,9 @@ function InfoModal({ onClose }: { onClose: () => void }) {
           <div className="pt-2 border-t border-gray-100 text-xs text-gray-400">
             <p>
               Built with React, DuckDB-WASM, and Plotly.js. Data from{' '}
-              <a href="https://github.com/null-jones/openspeclib" target="_blank" rel="noopener noreferrer"
+              <a href="https://github.com/null-jones/openspeclib/releases/tag/v0.0.4" target="_blank" rel="noopener noreferrer"
                 className="text-indigo-500 hover:text-indigo-700">
-                OpenSpecLib v0.0.3
+                OpenSpecLib v0.0.4
               </a>.
             </p>
           </div>
@@ -194,6 +195,9 @@ export default function Header() {
           <Logo />
           <div className="border-l border-slate-700 pl-4 flex items-center gap-3">
             <span className="text-sm font-medium text-slate-300">Viewer</span>
+            <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded font-mono">
+              v{OPENSPECLIB_VERSION}
+            </span>
             <span className="text-xs text-slate-500">
               {state.catalogLoaded
                 ? `${state.resultCount.toLocaleString()} spectra`
