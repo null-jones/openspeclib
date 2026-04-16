@@ -5,6 +5,7 @@ import CategoryFilter from '../search/CategoryFilter';
 import SensorSelector from '../search/SensorSelector';
 import ActiveFilters from '../search/ActiveFilters';
 import type { CatalogRecord } from '../../types/catalog';
+import type { SensorDefinition } from '../../types/sensors';
 
 /** Human-readable labels for source library identifiers. */
 const SOURCE_LABELS: Record<string, string> = {
@@ -21,6 +22,64 @@ interface SourceLicenseInfo {
   citation: string;
   url: string;
   count: number;
+}
+
+/** Expandable sensor details panel. */
+function SensorDetails({ sensor }: { sensor: SensorDefinition }) {
+  const [expanded, setExpanded] = useState(false);
+  const bands = sensor.bands;
+  const fwhms = bands.map((b) => b.fwhm * 1000);
+  const avgFwhm = fwhms.reduce((a, b) => a + b, 0) / fwhms.length;
+  const minFwhm = Math.min(...fwhms);
+  const maxFwhm = Math.max(...fwhms);
+  const isHyperspectral = bands.length > 30;
+
+  return (
+    <div className="p-2.5 bg-indigo-50/50 rounded-lg border border-indigo-100">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between gap-2 text-left"
+      >
+        <span className="text-xs font-semibold text-gray-800">{sensor.name}</span>
+        <svg
+          className={`w-3.5 h-3.5 text-gray-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      <p className="mt-1 text-[11px] text-gray-500">{sensor.description}</p>
+
+      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-gray-500">
+        <span><strong className="text-gray-700">{bands.length}</strong> bands</span>
+        <span>{(sensor.wavelengthMin * 1000).toFixed(0)}–{(sensor.wavelengthMax * 1000).toFixed(0)} nm</span>
+        <span>FWHM {minFwhm.toFixed(1)}–{maxFwhm.toFixed(1)} nm</span>
+      </div>
+
+      {expanded && (
+        <div className="mt-2 pt-2 border-t border-indigo-100">
+          <div className="grid grid-cols-3 gap-x-2 text-[10px] text-gray-500 mb-1">
+            <span className="font-medium text-gray-600">Band</span>
+            <span className="font-medium text-gray-600">Center (nm)</span>
+            <span className="font-medium text-gray-600">FWHM (nm)</span>
+          </div>
+          <div className={`space-y-px ${isHyperspectral ? 'max-h-40' : 'max-h-32'} overflow-y-auto`}>
+            {bands.map((band) => (
+              <div key={band.name} className="grid grid-cols-3 gap-x-2 text-[10px] text-gray-500">
+                <span>{band.name}</span>
+                <span>{(band.centerWavelength * 1000).toFixed(1)}</span>
+                <span>{(band.fwhm * 1000).toFixed(1)}</span>
+              </div>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[10px] text-gray-400">
+            Avg FWHM: {avgFwhm.toFixed(1)} nm
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** Expandable citation block for a single source. */
@@ -87,7 +146,7 @@ function SourceCitation({ info }: { info: SourceLicenseInfo }) {
 
 export default function Sidebar() {
   const { state } = useAppContext();
-  const { libraryIds, catalogRecords } = state;
+  const { libraryIds, catalogRecords, selectedSensor } = state;
 
   // Group selected spectra by source library, deduplicating license info.
   const sourceLicenses: SourceLicenseInfo[] = [];
@@ -125,6 +184,9 @@ export default function Sidebar() {
       </div>
 
       <SensorSelector />
+
+      {selectedSensor && <SensorDetails sensor={selectedSensor} />}
+
       <CategoryFilter />
 
       <ActiveFilters />
