@@ -115,7 +115,8 @@ def _load_curated_datasets() -> list[dict[str, str]]:
     Returns:
         List of ``{"id": ..., "name": ...}`` entries.
     """
-    return json.loads(DATASETS_FILE.read_text(encoding="utf-8"))
+    result: list[dict[str, str]] = json.loads(DATASETS_FILE.read_text(encoding="utf-8"))
+    return result
 
 
 def _classify_target_type(target_types: list[str]) -> MaterialCategory:
