@@ -1,4 +1,4 @@
-import { query } from './duckdb';
+import { query, SOURCES } from './duckdb';
 import type { SpectrumFull } from '../types/catalog';
 
 /** Fetch full spectral data for a list of spectrum IDs. */
@@ -6,8 +6,7 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
   if (ids.length === 0) return [];
 
   const inList = ids.map((id) => `'${id.replace(/'/g, "''")}'`).join(',');
-  const sql = `
-    SELECT
+  const columns = `
       id,
       name,
       "material.name" AS material_name,
@@ -17,10 +16,10 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
       "spectral_data.wavelength_unit" AS wavelength_unit,
       "spectral_data.wavelengths" AS wavelengths,
       "spectral_data.values" AS "values",
-      "source.library" AS source_library
-    FROM usgs_splib07
-    WHERE id IN (${inList})
-  `;
+      "source.library" AS source_library`;
+  const sql = SOURCES.map(
+    (s) => `SELECT ${columns} FROM ${s} WHERE id IN (${inList})`,
+  ).join('\nUNION ALL\n');
 
   const result = await query(sql);
   const spectra: SpectrumFull[] = [];

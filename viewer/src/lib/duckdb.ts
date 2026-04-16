@@ -5,7 +5,7 @@ import { getParquetUrl } from '../constants/urls';
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 
-const SOURCES = ['usgs_splib07'];
+export const SOURCES = ['usgs_splib07', 'ecosis'];
 
 export async function initDuckDB(): Promise<duckdb.AsyncDuckDBConnection> {
   if (conn) return conn;
