@@ -1,4 +1,4 @@
-import { CATALOG_URL, LICENSES_URL } from '../constants/urls';
+import { CATALOG_URL, CHECKSUMS_URL, LICENSES_URL } from '../constants/urls';
 import type { CatalogFile, CatalogRecord, LicensesFile } from '../types/catalog';
 
 let cachedCatalog: CatalogFile | null = null;
@@ -22,6 +22,37 @@ export async function fetchLicenses(): Promise<LicensesFile | null> {
     if (!resp.ok) return null;
     cachedLicenses = (await resp.json()) as LicensesFile;
     return cachedLicenses;
+  } catch {
+    return null;
+  }
+}
+
+let cachedChecksums: Map<string, string> | null = null;
+
+/**
+ * Fetch and parse the release `checksums.txt` (`<sha256>  <filename>` per
+ * line). Returns `null` if the file isn't present in the deployment — older
+ * releases may not have shipped one and the viewer can still function.
+ */
+export async function fetchChecksums(): Promise<Map<string, string> | null> {
+  if (cachedChecksums) return cachedChecksums;
+  try {
+    const resp = await fetch(CHECKSUMS_URL);
+    if (!resp.ok) return null;
+    const text = await resp.text();
+    const map = new Map<string, string>();
+    for (const line of text.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // Standard sha256sum format: "<hex>  <filename>"; tolerate either two
+      // spaces or any run of whitespace between hash and name.
+      const m = trimmed.match(/^([a-f0-9]+)\s+(.+)$/i);
+      if (m) {
+        map.set(m[2], m[1]);
+      }
+    }
+    cachedChecksums = map;
+    return cachedChecksums;
   } catch {
     return null;
   }

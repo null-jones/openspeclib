@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAppContext } from '../../state/AppContext';
 import { OPENSPECLIB_VERSION } from '../../constants/urls';
+import { InfoModal } from './InfoModal';
 
 /** Inline header logo — openspeclib wordmark + spectral trace. */
 function Logo() {
@@ -43,119 +44,6 @@ function Logo() {
           strokeLinecap="round" strokeLinejoin="round" />
       </g>
     </svg>
-  );
-}
-
-function InfoModal({ onClose }: { onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
-      <div
-        className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">About OpenSpecLib Viewer</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4 text-sm text-gray-700">
-          <p>
-            <strong>OpenSpecLib</strong> is an open-source spectral library that unifies data from
-            major reference collections (USGS Speclib 07, ECOSTRESS, RELAB, ASU TES, Bishop) into
-            a single, standardized format.
-          </p>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">What is this viewer?</h3>
-            <p>
-              This browser-based tool lets you search, explore, and visualize spectra from
-              OpenSpecLib releases. It runs entirely in your browser using DuckDB-WASM to query
-              Parquet files directly — no server required.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Sensor Downsampling</h3>
-            <p>
-              Select a satellite sensor (Sentinel-2, Landsat, Wyvern, or EnMAP) to simulate
-              how your spectra would appear as observed by that sensor. Downsampling uses
-              Gaussian spectral response function (SRF) convolution — the standard approach for
-              convolving high-resolution reference spectra to sensor band resolution.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Use Cases</h3>
-            <ul className="list-disc list-inside space-y-1 text-gray-600">
-              <li>Building custom spectral libraries for remote sensing classification</li>
-              <li>Comparing mineral, rock, soil, and vegetation reference spectra</li>
-              <li>Previewing how materials appear at different sensor resolutions</li>
-              <li>Exporting spectra in CSV or ENVI format for use in other tools</li>
-              <li>Education and research in spectroscopy and remote sensing</li>
-            </ul>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Data Sources</h3>
-            <p className="text-gray-600">
-              Currently includes spectra from <strong>USGS Spectral Library v7</strong>,{' '}
-              <strong>ECOSTRESS</strong>, and <strong>EcoSIS</strong> — about 33,000
-              spectra in total, with vegetation coverage substantially expanded in v0.0.6
-              (canopy, leaf, biodiversity datasets). The OSSL (Open Soil Spectral Library)
-              loader is implemented and planned for an upcoming release, along with RELAB,
-              ASU TES, and the Bishop library.
-            </p>
-          </div>
-
-          <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Reflectance Scale</h3>
-            <p className="text-gray-600">
-              All spectra are normalised to the <strong>0–1 unit interval</strong> so they
-              share a common y-axis. OpenSpecLib assumes every source scale is a power-of-10
-              multiplier of the unit interval — one of <code className="bg-gray-100 px-1 rounded">0–1</code>,{' '}
-              <code className="bg-gray-100 px-1 rounded">0–100</code>, or{' '}
-              <code className="bg-gray-100 px-1 rounded">0–10000</code> — and infers which
-              one applies per ECOSIS dataset from the data itself (USGS and ECOSTRESS are
-              uniformly 0–1 in the source). The pre-normalisation divisor, when non-trivial,
-              is recorded in each record's <code className="bg-gray-100 px-1 rounded">additional_properties</code>{' '}
-              for provenance.
-            </p>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
-            <h3 className="font-semibold text-amber-900 mb-1">Licensing Notice</h3>
-            <p className="text-amber-800 text-xs">
-              <strong>Licensing terms differ between source spectral libraries.</strong> Each
-              source library has its own license governing how its data may be used. Most sources
-              are Public Domain, but some (e.g. Bishop Spectral Library) restrict use to
-              non-commercial purposes with mandatory citation. Check the{' '}
-              <code className="bg-amber-100 px-1 rounded">source.library</code> field for each
-              spectrum and consult <code className="bg-amber-100 px-1 rounded">licenses.json</code>{' '}
-              or the{' '}
-              <a href="https://github.com/null-jones/openspeclib/blob/main/docs/licensing.md"
-                target="_blank" rel="noopener noreferrer"
-                className="text-amber-700 underline hover:text-amber-900">
-                licensing documentation
-              </a>{' '}
-              for full details.
-            </p>
-          </div>
-
-          <div className="pt-2 border-t border-gray-100 text-xs text-gray-400">
-            <p>
-              Built with React, DuckDB-WASM, and Plotly.js. Data from{' '}
-              <a href={`https://github.com/null-jones/openspeclib/releases/tag/v${OPENSPECLIB_VERSION}`} target="_blank" rel="noopener noreferrer"
-                className="text-indigo-500 hover:text-indigo-700">
-                OpenSpecLib v{OPENSPECLIB_VERSION}
-              </a>.
-            </p>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 

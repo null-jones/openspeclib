@@ -40,6 +40,7 @@ jobs:
             --repo null-jones/openspeclib \
             --pattern "*.json" \
             --pattern "*.parquet" \
+            --pattern "checksums.txt" \
             --skip-existing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

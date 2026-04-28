@@ -5,6 +5,28 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>OpenSpecLib Viewer</title>
+    <!--
+      Start downloading the DuckDB-WASM binaries as soon as the HTML is
+      parsed, in parallel with the JS bundle. Without these hints the WASM
+      fetch only kicks off after the bundle has loaded and run initDuckDB.
+      `as="fetch"` matches how DuckDB-WASM downloads the .wasm via the
+      bundle loader (not via <script>), so the preload reuses the same
+      cache entry. We hint the EH variant — the browser falls back to MVP
+      automatically if EH isn't supported.
+    -->
+    <link
+      rel="preload"
+      href="duckdb/duckdb-eh.wasm"
+      as="fetch"
+      type="application/wasm"
+      crossorigin="anonymous"
+    />
+    <link
+      rel="preload"
+      href="duckdb/duckdb-browser-eh.worker.js"
+      as="worker"
+      crossorigin="anonymous"
+    />
   </head>
   <body>
     <div id="root"></div>

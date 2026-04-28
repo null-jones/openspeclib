@@ -4,6 +4,8 @@ const BASE = import.meta.env.BASE_URL;
 export const OPENSPECLIB_VERSION = '0.0.6';
 export const CATALOG_URL = `${BASE}data/openspeclib-catalog-${OPENSPECLIB_VERSION}.json`;
 export const LICENSES_URL = `${BASE}data/licenses.json`;
+export const CHECKSUMS_URL = `${BASE}data/checksums.txt`;
+export const RELEASE_URL = `https://github.com/null-jones/openspeclib/releases/tag/v${OPENSPECLIB_VERSION}`;
 
 // Parquet artifacts ship with version-less filenames (usgs_splib07.parquet,
 // ecosis.parquet, …). Append a version query string so clients holding a
