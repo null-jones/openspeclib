@@ -94,3 +94,15 @@ strict = true
 # models before exposing anything to the rest of the codebase.
 module = ["pyarrow", "pyarrow.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# The storage layer and the OSSL CSV loader are the only modules that
+# call pyarrow directly. When CI installs a pyarrow build whose stubs
+# are partial (newer releases mark the package PEP-561 but ship
+# incomplete annotations) the ``Call to untyped function`` and
+# ``Module ... does not explicitly export attribute`` errors fire on
+# routine pyarrow calls. We accept untyped calls inside this narrow
+# boundary; types are re-asserted as the data leaves these modules.
+module = ["openspeclib.storage", "openspeclib.loaders.ossl"]
+disallow_untyped_calls = false
+warn_unused_ignores = false

@@ -135,7 +135,7 @@ def _load_soilsite(path: Path) -> dict[str, dict[str, Any]]:
     Returns:
         Mapping of ``id.layer_uuid_txt`` -> row dict (column -> value).
     """
-    table = pa_csv.read_csv(path)
+    table = pa_csv.read_csv(path)  # type: ignore[attr-defined]
     rows = table.to_pylist()
     out: dict[str, dict[str, Any]] = {}
     for row in rows:
@@ -299,7 +299,7 @@ def _iter_table_records(
     """
     # pyarrow.csv handles gzip transparently and is much faster than the
     # stdlib csv module on the wide OSSL tables (~1100+ columns each).
-    table = pa_csv.read_csv(path)
+    table = pa_csv.read_csv(path)  # type: ignore[attr-defined]
     schema_names = table.schema.names
     spectral = _index_spectral_columns(schema_names, pattern)
     if not spectral:
