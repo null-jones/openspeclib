@@ -46,5 +46,33 @@
   {
     "id": "20988266-b57b-4899-a410-b3c4e5daa646",
     "name": "Fresh and Dry Plant Tissue Spectra"
+  },
+  {
+    "id": "7433af7d-fbbd-4617-8df4-4d892f0d4357",
+    "name": "Leaf level spectra and LMA for a set of trees, forbs, vines and grasses collected in Madison, WI"
+  },
+  {
+    "id": "e7459b49-06d3-4e1d-beaa-cab0e012cc23",
+    "name": "2009 to 2016 Cedar Creek Enemy Removal Experiment Canopy Reflectance (MSR)"
+  },
+  {
+    "id": "b02e3e78-006c-4eed-a3d6-bfd593d15708",
+    "name": "Multiscale Mapping of Species Diversity Under Changed Land-use Imaging Spectroscopy"
+  },
+  {
+    "id": "5617da17-c925-49fb-b395-45a51291bd2d",
+    "name": "Fresh Leaf Spectra to Estimate LMA over NEON domains in eastern United States"
+  },
+  {
+    "id": "93d2c85a-4b7b-4fb8-b54e-1a0c09f643c6",
+    "name": "Greater Cape Floristic Region Leaf Spectral Library"
+  },
+  {
+    "id": "2a9d952a-5a28-47b3-9f85-8aa6e6808991",
+    "name": "Leaf and canopy level detection of Fusarium virguliforme (sudden death syndrome) in soybean"
+  },
+  {
+    "id": "ef2bc7ee-095c-4a76-bb5d-b16150667e14",
+    "name": "Hyperspectral data for measuring vegetation nutrients and canopy photosynthesis in a salt marsh"
   }
 ]

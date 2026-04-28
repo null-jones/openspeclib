@@ -5,16 +5,19 @@ Each source library is stored as a single
 `spectra/{source}.parquet` with [zstd](https://facebook.github.io/zstd/)
 compression, one row per spectrum. Nested Pydantic models are flattened to
 dot-separated columns for clean queryability in DuckDB / Polars / pandas /
-pyarrow.
+pyarrow. Wavelength axes are deduplicated into a sibling
+`spectra/wavelengths.parquet` registry so the largest column doesn't repeat
+across thousands of rows.
 
-Row groups inside each file give partial-read granularity — a Parquet reader
-over HTTP only fetches the footer plus the row groups matching your predicate
-via Range requests, so there's no need to split sources into multiple files by
-category.
+Per-source files are sorted by `id` and written with Parquet column statistics
+enabled, so `WHERE id IN (...)` lookups served over HTTP Range requests prune
+to one or two row groups per id rather than scanning the file. Row groups
+default to 250 spectra (small enough that a successful prune fetches only a
+few hundred KB).
 
 The machine-readable schema is `library.arrow.schema.json` (auto-generated
-from `openspeclib.storage.ARROW_SCHEMA`). This document is the human-readable
-companion.
+from `openspeclib.storage.ARROW_SCHEMA` and `WAVELENGTHS_ARROW_SCHEMA`). This
+document is the human-readable companion.
 
 ---
 
@@ -76,15 +79,58 @@ print(pf.metadata.num_rows)                  # total spectra in this source
 | `spectral_data.wavelength_unit`   | utf8            | no       | One of `um`, `nm`, `cm-1`                                  |
 | `spectral_data.wavelength_min`    | float64         | no       |                                                            |
 | `spectral_data.wavelength_max`    | float64         | no       |                                                            |
-| `spectral_data.num_points`        | int32           | no       | Equals length of `wavelengths` and `values`                |
-| `spectral_data.wavelengths`       | list&lt;float64&gt;    | no       | Variable length per spectrum                               |
+| `spectral_data.num_points`        | int32           | no       | Equals length of `values` and the resolved wavelength axis |
+| `spectral_data.wavelength_grid_id` | int32          | no       | Reference into `spectra/wavelengths.parquet` (see below)   |
 | `spectral_data.values`            | list&lt;float64&gt;    | no       | Variable length per spectrum                               |
 | `spectral_data.bandpass`          | list&lt;float64&gt;    | yes      | FWHM at each wavelength, when reported                     |
+| `spectral_data.reflectance_scale` | utf8            | no       | `unit` (0–1) for combined libraries; loaders normalise on ingest |
 | `quality.has_bad_bands`           | bool            | no       |                                                            |
 | `quality.bad_band_count`          | int32           | no       |                                                            |
 | `quality.coverage_fraction`       | float64         | no       | 0.0–1.0                                                    |
 | `quality.notes`                   | utf8            | yes      |                                                            |
 | `additional_properties`           | utf8            | no       | JSON-serialised `dict[str, Any]` — parse on read           |
+
+---
+
+## Wavelength grid registry — `spectra/wavelengths.parquet`
+
+The wavelength axis is heavily redundant in practice (USGS uses ~3 unique
+grids across 2.5k spectra; ECOSIS ~10 across 17k), so we store each unique
+`(wavelength_unit, wavelengths)` pair once in this side file and reference it
+from per-source rows by `spectral_data.wavelength_grid_id`. This typically
+shrinks the per-source files by ~20–30% and lets HTTP clients (e.g. the
+viewer) load the registry once at init.
+
+| Column            | Arrow type           | Nullable | Notes                                            |
+| ----------------- | -------------------- | -------- | ------------------------------------------------ |
+| `grid_id`         | int32                | no       | Globally unique; row index within this file      |
+| `source`          | utf8                 | no       | First source seen contributing this grid (provenance only) |
+| `wavelength_unit` | utf8                 | no       | One of `um`, `nm`, `cm-1`                        |
+| `n_points`        | int32                | no       |                                                  |
+| `wavelengths`     | list&lt;float64&gt;  | no       |                                                  |
+
+```python
+from pathlib import Path
+from openspeclib.storage import read_wavelengths
+
+registry = read_wavelengths(Path("speclib/spectra/wavelengths.parquet"))
+wavelengths, unit = registry.get(0)
+```
+
+`read_chunk` and `iter_records` automatically locate this sibling file and
+rehydrate `SpectralData.wavelengths` for callers, so consumers using the
+Pydantic surface never see the `grid_id` indirection.
+
+---
+
+## Reflectance scale convention
+
+Every record carries `spectral_data.reflectance_scale`, which in a combined
+library is always `"unit"` (values on [0, 1]). Loaders normalise sources that
+upload as `"percent"` (0–100) at ingest; the original source scale, when
+non-unit, is preserved in `additional_properties.source_reflectance_scale`
+for provenance. ECOSIS scale handling is configured per-dataset in
+`openspeclib/loaders/ecosis_scales.py`.
 
 ---
 
@@ -152,6 +198,8 @@ pf = pq.ParquetFile("speclib/spectra/usgs_splib07.parquet")
 print(pf.metadata.num_rows, "spectra in", pf.schema_arrow.metadata[b"source"])
 # Read only the first row group
 table = pf.read_row_group(0)
+# Verify column statistics are present (used for row-group skipping on id)
+print(pf.metadata.row_group(0).column(0).statistics)
 ```
 
 ### Streaming row-by-row (any source size)

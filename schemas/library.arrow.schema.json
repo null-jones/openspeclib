@@ -1,342 +1,401 @@
 {
   "format": "parquet",
   "compression": "zstd",
-  "footer_metadata_keys": [
-    "openspeclib_version",
-    "source"
-  ],
-  "columns": [
-    {
-      "name": "id",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "name",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.library",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.library_version",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.original_id",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.filename",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": true
-    },
-    {
-      "name": "source.url",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.license",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "source.citation",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "material.name",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "material.category",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": false
-    },
-    {
-      "name": "material.subcategory",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": true
-    },
-    {
-      "name": "material.formula",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
-      },
-      "nullable": true
-    },
-    {
-      "name": "material.keywords",
-      "type": {
-        "kind": "list",
-        "value_type": {
+  "write_statistics": true,
+  "spectra_files": {
+    "footer_metadata_keys": [
+      "openspeclib_version",
+      "source"
+    ],
+    "columns": [
+      {
+        "name": "id",
+        "type": {
           "kind": "primitive",
           "type": "string"
-        }
+        },
+        "nullable": false
       },
-      "nullable": false
-    },
-    {
-      "name": "sample.id",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "name",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.description",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.library",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.particle_size",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.library_version",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.origin",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.original_id",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.owner",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.filename",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.collection_date",
-      "type": {
-        "kind": "primitive",
-        "type": "date32[day]"
+      {
+        "name": "source.url",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "sample.preparation",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.license",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "measurement.instrument",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "source.citation",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "measurement.instrument_type",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "material.name",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "measurement.laboratory",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "material.category",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "measurement.technique",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "material.subcategory",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "measurement.geometry",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "material.formula",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": true
-    },
-    {
-      "name": "measurement.date",
-      "type": {
-        "kind": "primitive",
-        "type": "date32[day]"
+      {
+        "name": "material.keywords",
+        "type": {
+          "kind": "list",
+          "value_type": {
+            "kind": "primitive",
+            "type": "string"
+          }
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "spectral_data.type",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "sample.id",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.wavelength_unit",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "sample.description",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.wavelength_min",
-      "type": {
-        "kind": "primitive",
-        "type": "double"
+      {
+        "name": "sample.particle_size",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.wavelength_max",
-      "type": {
-        "kind": "primitive",
-        "type": "double"
+      {
+        "name": "sample.origin",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.num_points",
-      "type": {
-        "kind": "primitive",
-        "type": "int32"
+      {
+        "name": "sample.owner",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.wavelengths",
-      "type": {
-        "kind": "list",
-        "value_type": {
+      {
+        "name": "sample.collection_date",
+        "type": {
+          "kind": "primitive",
+          "type": "date32[day]"
+        },
+        "nullable": true
+      },
+      {
+        "name": "sample.preparation",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.instrument",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.instrument_type",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.laboratory",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.technique",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
+      },
+      {
+        "name": "measurement.geometry",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.date",
+        "type": {
+          "kind": "primitive",
+          "type": "date32[day]"
+        },
+        "nullable": true
+      },
+      {
+        "name": "spectral_data.type",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
+      },
+      {
+        "name": "spectral_data.wavelength_unit",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
+      },
+      {
+        "name": "spectral_data.wavelength_min",
+        "type": {
           "kind": "primitive",
           "type": "double"
-        }
+        },
+        "nullable": false
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.values",
-      "type": {
-        "kind": "list",
-        "value_type": {
+      {
+        "name": "spectral_data.wavelength_max",
+        "type": {
           "kind": "primitive",
           "type": "double"
-        }
+        },
+        "nullable": false
       },
-      "nullable": false
-    },
-    {
-      "name": "spectral_data.bandpass",
-      "type": {
-        "kind": "list",
-        "value_type": {
+      {
+        "name": "spectral_data.num_points",
+        "type": {
+          "kind": "primitive",
+          "type": "int32"
+        },
+        "nullable": false
+      },
+      {
+        "name": "spectral_data.wavelength_grid_id",
+        "type": {
+          "kind": "primitive",
+          "type": "int32"
+        },
+        "nullable": false
+      },
+      {
+        "name": "spectral_data.values",
+        "type": {
+          "kind": "list",
+          "value_type": {
+            "kind": "primitive",
+            "type": "double"
+          }
+        },
+        "nullable": false
+      },
+      {
+        "name": "spectral_data.bandpass",
+        "type": {
+          "kind": "list",
+          "value_type": {
+            "kind": "primitive",
+            "type": "double"
+          }
+        },
+        "nullable": true
+      },
+      {
+        "name": "spectral_data.reflectance_scale",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
+      },
+      {
+        "name": "quality.has_bad_bands",
+        "type": {
+          "kind": "primitive",
+          "type": "bool"
+        },
+        "nullable": false
+      },
+      {
+        "name": "quality.bad_band_count",
+        "type": {
+          "kind": "primitive",
+          "type": "int32"
+        },
+        "nullable": false
+      },
+      {
+        "name": "quality.coverage_fraction",
+        "type": {
           "kind": "primitive",
           "type": "double"
-        }
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "quality.has_bad_bands",
-      "type": {
-        "kind": "primitive",
-        "type": "bool"
+      {
+        "name": "quality.notes",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
       },
-      "nullable": false
-    },
-    {
-      "name": "quality.bad_band_count",
-      "type": {
-        "kind": "primitive",
-        "type": "int32"
+      {
+        "name": "additional_properties",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
+      }
+    ]
+  },
+  "wavelengths_file": {
+    "filename": "wavelengths.parquet",
+    "footer_metadata_keys": [
+      "openspeclib_version"
+    ],
+    "columns": [
+      {
+        "name": "grid_id",
+        "type": {
+          "kind": "primitive",
+          "type": "int32"
+        },
+        "nullable": false
       },
-      "nullable": false
-    },
-    {
-      "name": "quality.coverage_fraction",
-      "type": {
-        "kind": "primitive",
-        "type": "double"
+      {
+        "name": "source",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": false
-    },
-    {
-      "name": "quality.notes",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "wavelength_unit",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": false
       },
-      "nullable": true
-    },
-    {
-      "name": "additional_properties",
-      "type": {
-        "kind": "primitive",
-        "type": "string"
+      {
+        "name": "n_points",
+        "type": {
+          "kind": "primitive",
+          "type": "int32"
+        },
+        "nullable": false
       },
-      "nullable": false
-    }
-  ]
+      {
+        "name": "wavelengths",
+        "type": {
+          "kind": "list",
+          "value_type": {
+            "kind": "primitive",
+            "type": "double"
+          }
+        },
+        "nullable": false
+      }
+    ]
+  }
 }

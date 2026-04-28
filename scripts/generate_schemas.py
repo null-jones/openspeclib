@@ -23,6 +23,7 @@ from openspeclib.storage import (
     _META_SOURCE,
     _META_VERSION,
     ARROW_SCHEMA,
+    WAVELENGTHS_ARROW_SCHEMA,
 )
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
@@ -45,24 +46,36 @@ def _arrow_type_to_dict(arrow_type: pa.DataType) -> dict[str, Any]:
     return {"kind": "primitive", "type": str(arrow_type)}
 
 
-def write_arrow_schema(filename: str) -> None:
-    """Dump ARROW_SCHEMA as JSON for chunk-file documentation."""
-    columns = [
+def _columns_payload(schema: pa.Schema) -> list[dict[str, Any]]:
+    """Render an Arrow schema's fields as JSON-serialisable column metadata."""
+    return [
         {
             "name": field.name,
             "type": _arrow_type_to_dict(field.type),
             "nullable": field.nullable,
         }
-        for field in ARROW_SCHEMA
+        for field in schema
     ]
+
+
+def write_arrow_schema(filename: str) -> None:
+    """Dump per-source and wavelengths Arrow schemas as JSON documentation."""
     payload = {
         "format": "parquet",
         "compression": "zstd",
-        "footer_metadata_keys": [
-            _META_VERSION.decode("utf-8"),
-            _META_SOURCE.decode("utf-8"),
-        ],
-        "columns": columns,
+        "write_statistics": True,
+        "spectra_files": {
+            "footer_metadata_keys": [
+                _META_VERSION.decode("utf-8"),
+                _META_SOURCE.decode("utf-8"),
+            ],
+            "columns": _columns_payload(ARROW_SCHEMA),
+        },
+        "wavelengths_file": {
+            "filename": "wavelengths.parquet",
+            "footer_metadata_keys": [_META_VERSION.decode("utf-8")],
+            "columns": _columns_payload(WAVELENGTHS_ARROW_SCHEMA),
+        },
     }
     path = SCHEMAS_DIR / filename
     path.write_text(json.dumps(payload, indent=2) + "\n")

@@ -59,6 +59,10 @@ _SOURCE_EXTRA: dict[str, dict[str, str | None]] = {
         "license_url": "https://ecosis.org",
         "citation_doi": None,
     },
+    "ossl": {
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "citation_doi": "10.1371/journal.pone.0296545",
+    },
 }
 
 
@@ -92,6 +96,12 @@ def build_library(
     # Track the first record per source so we can enrich placeholder SourceInfo.
     first_records: dict[str, SpectrumRecord] = {}
 
+    # Wavelength axes are shared across spectra (USGS uses ~3 grids for ~2.5k
+    # spectra; ECOSIS ~10 across ~17k); deduplicate them into a master
+    # ``wavelengths.parquet`` and reference each by ``grid_id`` from the
+    # per-source files.
+    registry = storage.WavelengthRegistry()
+
     for source_name, records in record_streams.items():
         logger.info("Processing source: %s", source_name)
         chunk_rel_path = f"spectra/{source_name}.parquet"
@@ -117,7 +127,17 @@ def build_library(
                 category_counts[record.material.category.value] += 1
                 yield record
 
-        storage.write_source(_tee(records, source_name), chunk_path, source=source_name)
+        storage.write_source(
+            _tee(records, source_name),
+            chunk_path,
+            source=source_name,
+            registry=registry,
+        )
+
+    # Flush the deduplicated wavelength registry as a sibling parquet file.
+    wavelengths_path = spectra_dir / storage.WAVELENGTHS_FILENAME
+    if len(registry) > 0:
+        storage.write_wavelengths(registry, wavelengths_path)
 
     # Enrich source metadata from the first record of each source and update counts.
     for name, info in source_metadata.items():

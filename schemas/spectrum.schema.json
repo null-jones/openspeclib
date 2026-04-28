@@ -370,7 +370,8 @@
         "relab",
         "asu_tes",
         "bishop",
-        "ecosis"
+        "ecosis",
+        "ossl"
       ],
       "title": "SourceLibrary",
       "type": "string"
@@ -433,6 +434,16 @@
           "default": null,
           "description": "Bandpass (FWHM) at each wavelength position, if available.",
           "title": "Bandpass"
+        },
+        "reflectance_scale": {
+          "default": "unit",
+          "description": "Scale of stored reflectance/emissivity/absorbance values. 'unit' = 0\u20131, 'percent' = 0\u2013100. Loaders normalise to 'unit' on ingest so all spectra in a combined library share a single axis; the original source scale (when known and non-unit) is preserved in ``additional_properties.source_reflectance_scale``.",
+          "enum": [
+            "unit",
+            "percent"
+          ],
+          "title": "Reflectance Scale",
+          "type": "string"
         }
       },
       "required": [

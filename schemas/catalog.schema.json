@@ -528,7 +528,8 @@
         "relab",
         "asu_tes",
         "bishop",
-        "ecosis"
+        "ecosis",
+        "ossl"
       ],
       "title": "SourceLibrary",
       "type": "string"

@@ -6,7 +6,7 @@ JSON Schema files in schemas/ are generated from these models.
 
 import datetime as _dt
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -20,6 +20,7 @@ class SourceLibrary(str, Enum):
     ASU_TES = "asu_tes"
     BISHOP = "bishop"
     ECOSIS = "ecosis"
+    OSSL = "ossl"
 
 
 class MaterialCategory(str, Enum):
@@ -151,6 +152,16 @@ class SpectralData(BaseModel):
     bandpass: Optional[list[float]] = Field(
         default=None,
         description="Bandpass (FWHM) at each wavelength position, if available.",
+    )
+    reflectance_scale: Literal["unit", "percent"] = Field(
+        default="unit",
+        description=(
+            "Scale of stored reflectance/emissivity/absorbance values. "
+            "'unit' = 0–1, 'percent' = 0–100. Loaders normalise to 'unit' on "
+            "ingest so all spectra in a combined library share a single axis; "
+            "the original source scale (when known and non-unit) is preserved "
+            "in ``additional_properties.source_reflectance_scale``."
+        ),
     )
 
 

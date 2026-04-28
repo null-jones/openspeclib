@@ -25,6 +25,7 @@ from typing import Any, Iterator
 from tqdm import tqdm
 
 from openspeclib.loaders.base import BaseLoader
+from openspeclib.loaders.ecosis_scales import infer_dataset_divisor
 from openspeclib.models import (
     Material,
     MaterialCategory,
@@ -330,26 +331,50 @@ class EcosisLoader(BaseLoader):
                 citation=citation,
             )
 
-            for spectrum in tqdm(
-                spectra_list,
-                desc=f"  {dataset_title[:50]}",
-                leave=False,
-            ):
-                spectrum_id = spectrum.get("_id", "")
+            # Pre-pass: parse every spectrum's datapoints so we can infer
+            # the dataset's source reflectance scale from the actual data
+            # before emitting any records. ECOSIS bundles are split per
+            # dataset, so this fits comfortably in memory and avoids
+            # mis-classifying individual spectra in isolation.
+            parsed_spectra: list[tuple[dict[str, Any], list[float], list[float]]] = []
+            for spectrum in spectra_list:
                 datapoints = spectrum.get("datapoints", {})
                 if not datapoints:
                     total_errors += 1
                     continue
-
                 try:
                     wavelengths, values = _parse_datapoints(datapoints)
                 except ValueError:
                     total_errors += 1
                     continue
-
                 if len(wavelengths) < 2:
                     total_errors += 1
                     continue
+                parsed_spectra.append((spectrum, wavelengths, values))
+
+            source_divisor = infer_dataset_divisor([vals for (_, _, vals) in parsed_spectra])
+            if source_divisor != 1:
+                logger.info(
+                    "Detected source scale 0-%d for ECOSIS dataset %s (%s); "
+                    "dividing values by %d to normalise to the unit interval",
+                    source_divisor,
+                    dataset_title,
+                    dataset_id,
+                    source_divisor,
+                )
+
+            for spectrum, wavelengths, values in tqdm(
+                parsed_spectra,
+                desc=f"  {dataset_title[:50]}",
+                leave=False,
+            ):
+                spectrum_id = spectrum.get("_id", "")
+
+                # Normalise to the 0–1 convention shared with USGS /
+                # ECOSTRESS so downstream consumers (notably the
+                # viewer's shared y-axis) can plot them together.
+                if source_divisor != 1:
+                    values = [v / source_divisor for v in values]
 
                 # Per-spectrum metadata (may override dataset-level)
                 spec_target = spectrum.get("Target Type", "")
@@ -399,6 +424,10 @@ class EcosisLoader(BaseLoader):
                     additional["dataset_authors"] = authors
                 if organization:
                     additional["dataset_organization"] = organization
+                # Preserve the pre-normalisation source scale when it
+                # differs from the canonical 'unit' scale, for provenance.
+                if source_divisor != 1:
+                    additional["source_reflectance_divisor"] = source_divisor
 
                 global_id = f"ecosis:{dataset_id}:{spectrum_id}"
 
@@ -435,6 +464,7 @@ class EcosisLoader(BaseLoader):
                             num_points=len(wavelengths),
                             wavelengths=wavelengths,
                             values=values,
+                            reflectance_scale="unit",
                         ),
                         additional_properties=additional,
                         quality=Quality(

@@ -1,4 +1,4 @@
-import { query, SOURCES } from './duckdb';
+import { getWavelengthGrid, query, SOURCES } from './duckdb';
 import type { SpectrumFull } from '../types/catalog';
 
 /** Fetch full spectral data for a list of spectrum IDs. */
@@ -6,6 +6,10 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
   if (ids.length === 0) return [];
 
   const inList = ids.map((id) => `'${id.replace(/'/g, "''")}'`).join(',');
+  // Wavelengths are stored once per unique grid in wavelengths.parquet and
+  // referenced by an int32 grid_id from each spectrum row, so the per-spectrum
+  // SELECT pulls only the small id reference. The full axis is rehydrated
+  // client-side from the registry materialised at initDuckDB.
   const columns = `
       id,
       name,
@@ -14,7 +18,7 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
       "material.formula" AS material_formula,
       "measurement.technique" AS measurement_technique,
       "spectral_data.wavelength_unit" AS wavelength_unit,
-      "spectral_data.wavelengths" AS wavelengths,
+      "spectral_data.wavelength_grid_id" AS wavelength_grid_id,
       "spectral_data.values" AS "values",
       "source.library" AS source_library`;
   const sql = SOURCES.map(
@@ -27,6 +31,8 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
   for (let i = 0; i < result.numRows; i++) {
     const row = result.get(i);
     if (!row) continue;
+    const gridId = row.wavelength_grid_id as number;
+    const wavelengths = Array.from(getWavelengthGrid(gridId));
     spectra.push({
       id: row.id as string,
       name: row.name as string,
@@ -35,7 +41,7 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
       material_formula: row.material_formula as string | null,
       measurement_technique: row.measurement_technique as string as SpectrumFull['measurement_technique'],
       wavelength_unit: row.wavelength_unit as string as SpectrumFull['wavelength_unit'],
-      wavelengths: arrowListToArray(row.wavelengths),
+      wavelengths,
       values: arrowListToArray(row.values),
       source_library: row.source_library as string,
     });

@@ -102,8 +102,26 @@ function InfoModal({ onClose }: { onClose: () => void }) {
             <h3 className="font-semibold text-gray-900 mb-1">Data Sources</h3>
             <p className="text-gray-600">
               Currently includes spectra from <strong>USGS Spectral Library v7</strong>,{' '}
-              <strong>ECOSTRESS</strong>, and <strong>EcoSIS</strong>. Additional sources
-              (RELAB, ASU TES, Bishop) are planned for future releases.
+              <strong>ECOSTRESS</strong>, <strong>EcoSIS</strong>, and{' '}
+              <strong>OSSL (Open Soil Spectral Library)</strong>. OSSL contributes
+              ~80,000 soil samples (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS) with both
+              VisNIR reflectance and MIR absorbance spectra. Additional sources (RELAB,
+              ASU TES, Bishop) are planned for future releases.
+            </p>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-gray-900 mb-1">Reflectance Scale</h3>
+            <p className="text-gray-600">
+              All spectra are normalised to the <strong>0–1 unit interval</strong> so they
+              share a common y-axis. OpenSpecLib assumes every source scale is a power-of-10
+              multiplier of the unit interval — one of <code className="bg-gray-100 px-1 rounded">0–1</code>,{' '}
+              <code className="bg-gray-100 px-1 rounded">0–100</code>, or{' '}
+              <code className="bg-gray-100 px-1 rounded">0–10000</code> — and infers which
+              one applies per ECOSIS dataset from the data itself (USGS and ECOSTRESS are
+              uniformly 0–1 in the source). The pre-normalisation divisor, when non-trivial,
+              is recorded in each record's <code className="bg-gray-100 px-1 rounded">additional_properties</code>{' '}
+              for provenance.
             </p>
           </div>
 

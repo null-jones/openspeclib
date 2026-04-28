@@ -22,10 +22,15 @@ from openspeclib.models import (
 )
 from openspeclib.storage import (
     ARROW_SCHEMA,
+    WAVELENGTHS_ARROW_SCHEMA,
+    WAVELENGTHS_FILENAME,
+    WavelengthRegistry,
     iter_records,
     read_chunk,
+    read_wavelengths,
     validate_parquet_schema,
     write_source,
+    write_wavelengths,
 )
 
 
@@ -276,3 +281,116 @@ def test_empty_stream_produces_no_file(tmp_path: Path) -> None:
     count = write_source(iter([]), path, source="usgs_splib07")
     assert count == 0
     assert not path.exists()
+
+
+def test_records_are_sorted_by_id_on_write(tmp_path: Path) -> None:
+    # Feed records in scrambled order; expect the parquet to materialise them
+    # in id-sorted order so DuckDB can prune row groups by id range.
+    ids = ["test:003", "test:000", "test:002", "test:004", "test:001"]
+    records = [_build_minimal_record(spectrum_id=i) for i in ids]
+
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source(records, path, source="usgs_splib07")
+
+    streamed = [r.id for r in iter_records(path)]
+    assert streamed == sorted(ids)
+
+
+def test_column_statistics_are_written(tmp_path: Path) -> None:
+    # Multiple row groups with disjoint id ranges so we can also check that
+    # the row group min/max statistics are populated.
+    records = [_build_minimal_record(spectrum_id=f"test:{i:03d}") for i in range(20)]
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source(records, path, source="usgs_splib07", row_group_size=5)
+
+    pf = pq.ParquetFile(path)
+    assert pf.metadata.num_row_groups == 4
+
+    for rg_idx in range(pf.metadata.num_row_groups):
+        row_group = pf.metadata.row_group(rg_idx)
+        # Locate the id column by name
+        id_col_idx = next(
+            i for i in range(row_group.num_columns) if row_group.column(i).path_in_schema == "id"
+        )
+        stats = row_group.column(id_col_idx).statistics
+        assert stats is not None, f"row group {rg_idx} has no id-column statistics"
+        assert stats.has_min_max
+        assert stats.min is not None
+        assert stats.max is not None
+
+
+def test_wavelengths_are_deduplicated_into_registry(tmp_path: Path) -> None:
+    # Three records: two share a wavelength axis, one differs.
+    shared_wl = [0.4, 1.0, 2.5]
+    other_wl = [0.5, 1.5, 2.0]
+
+    r1 = _build_minimal_record("test:001")
+    r1.spectral_data.wavelengths = list(shared_wl)
+    r2 = _build_minimal_record("test:002")
+    r2.spectral_data.wavelengths = list(shared_wl)
+    r3 = _build_minimal_record("test:003")
+    r3.spectral_data.wavelengths = list(other_wl)
+    r3.spectral_data.wavelength_min = other_wl[0]
+    r3.spectral_data.wavelength_max = other_wl[-1]
+
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([r1, r2, r3], path, source="usgs_splib07")
+
+    wavelengths_path = tmp_path / WAVELENGTHS_FILENAME
+    assert wavelengths_path.exists()
+
+    registry = read_wavelengths(wavelengths_path)
+    assert len(registry) == 2  # two unique grids, not three
+
+
+def test_wavelengths_file_schema_matches_canonical(tmp_path: Path) -> None:
+    record = _build_minimal_record("test:001")
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
+
+    wavelengths_path = tmp_path / WAVELENGTHS_FILENAME
+    actual = pq.read_schema(wavelengths_path)
+    for expected_field in WAVELENGTHS_ARROW_SCHEMA:
+        actual_field = actual.field(expected_field.name)
+        assert actual_field.type.equals(expected_field.type)
+
+
+def test_read_chunk_rehydrates_wavelengths_via_registry(tmp_path: Path) -> None:
+    record = _build_minimal_record("test:001")
+    record.spectral_data.wavelengths = [0.42, 1.1, 2.4]
+    record.spectral_data.wavelength_min = 0.42
+    record.spectral_data.wavelength_max = 2.4
+
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
+
+    chunk = read_chunk(path)
+    assert chunk.spectra[0].spectral_data.wavelengths == [0.42, 1.1, 2.4]
+
+
+def test_write_wavelengths_then_read_roundtrip(tmp_path: Path) -> None:
+    registry = WavelengthRegistry()
+    g1 = registry.register([0.4, 1.0, 2.5], "um", "usgs_splib07")
+    g2 = registry.register([400.0, 700.0, 1000.0], "nm", "ecosis")
+    g1_dup = registry.register([0.4, 1.0, 2.5], "um", "different_source_should_not_matter")
+    assert g1 == g1_dup
+    assert g1 != g2
+
+    path = tmp_path / WAVELENGTHS_FILENAME
+    write_wavelengths(registry, path)
+
+    restored = read_wavelengths(path)
+    assert len(restored) == 2
+    assert restored.get(g1) == ([0.4, 1.0, 2.5], "um")
+    assert restored.get(g2) == ([400.0, 700.0, 1000.0], "nm")
+
+
+def test_reflectance_scale_roundtrips(tmp_path: Path) -> None:
+    record = _build_minimal_record("test:001")
+    # Default for new records is "unit" — check the default trip
+    assert record.spectral_data.reflectance_scale == "unit"
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
+
+    chunk = read_chunk(path)
+    assert chunk.spectra[0].spectral_data.reflectance_scale == "unit"

@@ -118,10 +118,11 @@ openspeclib combine --input ./processed/ --output ./library/
 
 The combiner reads all JSONL files from the processed directory and constructs the master library:
 
-1. **Emit one Parquet file per source** at `spectra/{source}.parquet`. Records are streamed through `pyarrow.parquet.ParquetWriter` so memory usage is bounded regardless of source size. Inside each file, Parquet row groups (default 1,000 spectra per group) give readers partial-read granularity — category filtering is a column predicate, not a file selection.
-2. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (`spectra/{source}.parquet`).
-3. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
-4. **Write output files** — `catalog.json` (JSON), per-source `.parquet` files under `spectra/` (zstd-compressed, one row per spectrum), and `VERSION`.
+1. **Emit one Parquet file per source** at `spectra/{source}.parquet`. Records are buffered, sorted by `id`, and written in row groups of 250 spectra with Parquet column statistics enabled. The sort plus statistics let HTTP Range-request consumers (DuckDB, the viewer) prune row groups that don't cover a target id, fetching only a few hundred KB per `id IN (...)` lookup instead of scanning the whole file.
+2. **Deduplicate wavelength axes** into a shared `WavelengthRegistry` while writing each source. Each unique `(wavelength_unit, wavelengths)` pair is registered once and replaced by an `int32` `spectral_data.wavelength_grid_id` reference inside the per-source files. The registry is flushed at the end of combine to `spectra/wavelengths.parquet`.
+3. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (`spectra/{source}.parquet`).
+4. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
+5. **Write output files** — `catalog.json` (JSON), per-source `.parquet` files plus `wavelengths.parquet` under `spectra/` (zstd-compressed, one row per spectrum), and `VERSION`.
 
 File-level metadata (`openspeclib_version`, `source`) is written into the Parquet footer key-value metadata; the spectrum count is read from Parquet's native `num_rows`. See `schemas/library.parquet-schema.md` for the full column reference.
 
@@ -137,19 +138,20 @@ Validation comprises two layers:
 
 `catalog.json` is validated against `schemas/catalog.schema.json` (JSON Schema Draft 2020-12).
 
-Each Parquet chunk file is validated against the canonical Arrow schema (`openspeclib.storage.ARROW_SCHEMA`): column names, types, and nullability are compared against the spec, and any drift is reported. The footer must also carry the four required metadata keys (`openspeclib_version`, `source`, `category`, `spectrum_count`).
+Each Parquet chunk file is validated against the canonical Arrow schema (`openspeclib.storage.ARROW_SCHEMA`); the sibling `spectra/wavelengths.parquet` is validated against `WAVELENGTHS_ARROW_SCHEMA`. Column names, types, and nullability are compared against the spec, and any drift is reported. Per-source footers must carry the `openspeclib_version` and `source` metadata keys.
 
 ### Semantic Validation
 
 Cross-referencing checks that go beyond schema conformance:
 
-- **Referential integrity:** Every `chunk_file` referenced in the catalog exists on disk.
+- **Referential integrity:** Every `chunk_file` referenced in the catalog exists on disk; the sibling `spectra/wavelengths.parquet` exists.
 - **Bidirectional consistency:** Every spectrum in a chunk file has a corresponding catalog entry.
 - **Array length consistency:** `wavelengths` and `values` array lengths match the declared `num_points`.
 - **Boundary accuracy:** `wavelength_min` and `wavelength_max` match the actual data extrema.
 - **Uniqueness:** No duplicate spectrum IDs exist across the entire library.
 - **Quality metrics:** `bad_band_count` and `coverage_fraction` are consistent with the actual data values.
 - **Statistics accuracy:** Aggregate counts match the actual entry counts.
+- **Reflectance scale:** Every spectrum carries `reflectance_scale="unit"`; values outside [0, 2] are warned as a likely missed scale conversion.
 
 ## Running the Full Pipeline
 

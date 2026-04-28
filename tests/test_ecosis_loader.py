@@ -10,6 +10,7 @@ from openspeclib.loaders.ecosis import (
     _detect_technique,
     _parse_datapoints,
 )
+from openspeclib.loaders.ecosis_scales import infer_dataset_divisor
 from openspeclib.models import MaterialCategory, MeasurementTechnique
 
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "ecosis"
@@ -92,6 +93,53 @@ class TestDetectTechnique:
         assert _detect_technique([]) == MeasurementTechnique.REFLECTANCE
 
 
+class TestInferDatasetDivisor:
+    def test_unit_scale_dataset(self):
+        # Typical reflectance values, all under 1.0 → divisor 1.
+        spectra = [[0.05, 0.1, 0.2, 0.5], [0.04, 0.08, 0.18, 0.45]]
+        assert infer_dataset_divisor(spectra) == 1
+
+    def test_percent_scale_dataset(self):
+        # Typical 0-100 reflectance values → divisor 100.
+        spectra = [[5.0, 10.0, 25.0, 60.0], [3.0, 8.0, 22.0, 55.0]]
+        assert infer_dataset_divisor(spectra) == 100
+
+    def test_scaled_int_dataset(self):
+        # Typical 0-10000 scaled-integer reflectance → divisor 10000.
+        spectra = [[500, 1500, 3000, 5500], [400, 1400, 2800, 5300]]
+        assert infer_dataset_divisor(spectra) == 10000
+
+    def test_unit_scale_with_one_outlier_spectrum(self):
+        # A single noisy spectrum with one out-of-range value shouldn't
+        # flip the classification — the median spectrum max still sits
+        # below the unit ceiling.
+        spectra = [
+            [0.05, 0.1, 0.2, 0.5],
+            [0.04, 0.08, 0.18, 0.45],
+            [0.04, 0.08, 0.18, 0.45],
+            [0.04, 0.08, 0.18, 99.0],  # one bad spectrum
+            [0.04, 0.08, 0.18, 0.45],
+        ]
+        assert infer_dataset_divisor(spectra) == 1
+
+    def test_emissivity_above_one_still_unit(self):
+        # Emissivity / absorbance can legitimately exceed 1.0 in some
+        # bands but stays well below the 1.5 unit ceiling.
+        spectra = [[0.5, 0.9, 1.1, 1.2], [0.4, 0.85, 1.05, 1.15]]
+        assert infer_dataset_divisor(spectra) == 1
+
+    def test_empty_dataset_defaults_to_one(self):
+        assert infer_dataset_divisor([]) == 1
+        assert infer_dataset_divisor([[], []]) == 1
+
+    def test_picks_smallest_divisor_that_normalises(self):
+        # A dataset whose median sits at ~50 fits divisor 100 (50/100 =
+        # 0.5) but not divisor 1 (50 > 1.5). The function must pick the
+        # smallest divisor that brings the median into the unit range.
+        spectra = [[10.0, 30.0, 50.0, 70.0]] * 5
+        assert infer_dataset_divisor(spectra) == 100
+
+
 class TestEcosisLoader:
     def test_source_name(self):
         loader = EcosisLoader()
@@ -124,3 +172,14 @@ class TestEcosisLoader:
         for r in records:
             assert r.source.library.value == "ecosis"
             assert r.additional_properties["dataset_id"] == "03e46f54-7d68-4a8c-896a-fcea87e9cf10"
+
+    def test_fixture_is_auto_detected_as_unit_scale(self):
+        # The bundled fixture has spectrum max values < 1.5, so the
+        # median-of-maxes heuristic returns divisor 1 (unit-scale) and
+        # the loader applies no normalisation.
+        loader = EcosisLoader()
+        records = list(loader.load(FIXTURE_DIR))
+
+        for r in records:
+            assert r.spectral_data.reflectance_scale == "unit"
+            assert "source_reflectance_divisor" not in r.additional_properties

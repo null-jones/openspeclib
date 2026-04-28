@@ -7,6 +7,7 @@ data consistency, checking for duplicates, etc.).
 
 import json
 import logging
+import math
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,6 +22,21 @@ from openspeclib.models import (
     MeasurementTechnique,
     WavelengthUnit,
 )
+
+# Soft upper bound on stored "unit"-scale values, by measurement
+# technique. Reflectance is bounded by [0, 1] in theory but emissivity
+# can overshoot in some bands, hence a ceiling above 1.0 with margin.
+# Absorbance is on a log10 scale (typical max ~3 for OSSL MIR), so its
+# ceiling is much higher. Anything above the technique's ceiling almost
+# always indicates a missed scale conversion (e.g. a 0–100 percent
+# dataset slipped through without normalisation).
+_VALUE_CEILING_BY_TECHNIQUE: dict[str, float] = {
+    "reflectance": 2.0,
+    "emissivity": 2.0,
+    "transmittance": 2.0,
+    "absorbance": 5.0,
+}
+_DEFAULT_VALUE_CEILING = 2.0
 
 logger = logging.getLogger(__name__)
 
@@ -246,6 +262,28 @@ def _validate_chunk_files(
     chunk_files = {entry.chunk_file for entry in catalog.spectra}
     catalog_ids = {entry.id for entry in catalog.spectra}
 
+    # The wavelength grid registry is shared across per-source files; load it
+    # once so each chunk's grid_id references can be resolved into the actual
+    # wavelength axis for length and ordering checks.
+    spectra_dir = library_dir / "spectra"
+    wavelengths_path = spectra_dir / storage.WAVELENGTHS_FILENAME
+    registry: storage.WavelengthRegistry | None = None
+    if wavelengths_path.exists():
+        wavelengths_schema_errors = storage.validate_parquet_schema(
+            wavelengths_path, schema=storage.WAVELENGTHS_ARROW_SCHEMA
+        )
+        for err in wavelengths_schema_errors:
+            result.errors.append(f"Wavelengths file schema: {err}")
+        if not wavelengths_schema_errors:
+            try:
+                registry = storage.read_wavelengths(wavelengths_path)
+            except Exception as e:
+                result.errors.append(f"Failed to read wavelengths.parquet: {e}")
+    else:
+        result.errors.append(
+            f"Wavelength grid registry missing: {wavelengths_path.relative_to(library_dir)}"
+        )
+
     for chunk_file in sorted(chunk_files):
         chunk_path = library_dir / chunk_file
         if not chunk_path.exists():
@@ -259,7 +297,7 @@ def _validate_chunk_files(
             continue
 
         try:
-            chunk = storage.read_chunk(chunk_path)
+            chunk = storage.read_chunk(chunk_path, registry=registry)
         except Exception as e:
             result.errors.append(f"Chunk '{chunk_file}' parse error: {e}")
             continue
@@ -289,6 +327,33 @@ def _validate_chunk_files(
                     f"Spectrum '{spectrum.id}': bandpass length ({len(sd.bandpass)}) "
                     f"!= num_points ({sd.num_points})"
                 )
+
+            # Reflectance scale convention: combined libraries always store
+            # values on the unit interval. A 'percent' record here means a
+            # loader skipped its normalisation step.
+            if sd.reflectance_scale != "unit":
+                result.errors.append(
+                    f"Spectrum '{spectrum.id}': reflectance_scale is "
+                    f"'{sd.reflectance_scale}' but combined libraries must store "
+                    f"values on the unit interval"
+                )
+
+            # Soft range check — flag values that look like an unconverted
+            # percent scale rather than reject outright. Bounds are
+            # technique-aware: absorbance is log10 and routinely reaches
+            # ~3, while reflectance/emissivity stay near the unit interval.
+            technique_value = sd.type.value if hasattr(sd.type, "value") else str(sd.type)
+            ceiling = _VALUE_CEILING_BY_TECHNIQUE.get(technique_value, _DEFAULT_VALUE_CEILING)
+            for v in sd.values:
+                if not math.isfinite(v):
+                    continue
+                if v < 0 or v > ceiling:
+                    result.warnings.append(
+                        f"Spectrum '{spectrum.id}': {technique_value} value {v} "
+                        f"outside expected range [0, {ceiling}] — possible missed "
+                        f"scale conversion"
+                    )
+                    break
 
 
 def _validate_licenses_file(

@@ -87,6 +87,41 @@ class TestValidateLibrary:
         assert not result.is_valid
         assert any("total_spectra" in e for e in result.errors)
 
+    def test_missing_wavelengths_file_is_error(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
+        output_dir = tmp_path / "library"
+        build_library(
+            record_streams={"usgs_splib07": iter([sample_spectrum])},
+            source_metadata={"usgs_splib07": _make_source_info("USGS")},
+            output_dir=output_dir,
+        )
+
+        from openspeclib.storage import WAVELENGTHS_FILENAME
+
+        (output_dir / "spectra" / WAVELENGTHS_FILENAME).unlink()
+        result = validate_library(output_dir)
+        assert not result.is_valid
+        assert any("wavelength grid registry missing" in e.lower() for e in result.errors)
+
+    def test_out_of_range_values_warned(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
+        output_dir = tmp_path / "library"
+
+        # Slip an obviously percent-scale value through (above the 2.0 ceiling)
+        bad = sample_spectrum.model_copy(deep=True)
+        bad.spectral_data.values = [50.0, 60.0, 70.0, 80.0, 90.0]
+
+        build_library(
+            record_streams={"usgs_splib07": iter([bad])},
+            source_metadata={"usgs_splib07": _make_source_info("USGS")},
+            output_dir=output_dir,
+        )
+
+        result = validate_library(output_dir)
+        assert any("missed scale conversion" in w for w in result.warnings)
+
 
 class TestValidationResult:
     def test_empty_is_valid(self) -> None:

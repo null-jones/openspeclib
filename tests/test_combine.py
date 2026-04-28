@@ -8,7 +8,11 @@ from openspeclib.models import (
     SourceInfo,
     SpectrumRecord,
 )
-from openspeclib.storage import read_chunk
+from openspeclib.storage import (
+    WAVELENGTHS_FILENAME,
+    read_chunk,
+    read_wavelengths,
+)
 
 
 def _make_source_info(name: str) -> SourceInfo:
@@ -153,3 +157,63 @@ class TestBuildLibrary:
         )
 
         assert catalog.sources["usgs_splib07"].spectrum_count == 1
+
+    def test_wavelengths_file_is_shared_across_sources(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
+        output_dir = tmp_path / "library"
+
+        # Two records, two sources, but the same wavelength axis — should
+        # collapse to a single grid in the master wavelengths.parquet.
+        spectrum2 = sample_spectrum.model_copy(
+            update={
+                "id": "ecostress:001",
+                "source": sample_spectrum.source.model_copy(
+                    update={"library": "ecostress", "original_id": "001"}
+                ),
+            }
+        )
+
+        build_library(
+            record_streams={
+                "usgs_splib07": iter([sample_spectrum]),
+                "ecostress": iter([spectrum2]),
+            },
+            source_metadata={
+                "usgs_splib07": _make_source_info("USGS"),
+                "ecostress": _make_source_info("ECOSTRESS"),
+            },
+            output_dir=output_dir,
+        )
+
+        wavelengths_path = output_dir / "spectra" / WAVELENGTHS_FILENAME
+        assert wavelengths_path.exists()
+        registry = read_wavelengths(wavelengths_path)
+        assert len(registry) == 1  # one shared grid
+
+    def test_per_source_chunk_does_not_inline_wavelengths(
+        self, sample_spectrum: SpectrumRecord, tmp_path: Path
+    ) -> None:
+        # The per-source parquet must use a wavelength_grid_id reference;
+        # only spectral_data.values should remain inline.
+        output_dir = tmp_path / "library"
+        build_library(
+            record_streams={"usgs_splib07": iter([sample_spectrum])},
+            source_metadata={"usgs_splib07": _make_source_info("USGS")},
+            output_dir=output_dir,
+        )
+
+        import pyarrow.parquet as pq
+
+        chunk_path = output_dir / "spectra/usgs_splib07.parquet"
+        schema = pq.read_schema(chunk_path)
+        names = {f.name for f in schema}
+        assert "spectral_data.wavelength_grid_id" in names
+        assert "spectral_data.wavelengths" not in names
+
+        # Round-trip should still hand callers a fully-populated wavelengths
+        # array via the registry sibling file.
+        chunk = read_chunk(chunk_path)
+        assert (
+            chunk.spectra[0].spectral_data.wavelengths == sample_spectrum.spectral_data.wavelengths
+        )

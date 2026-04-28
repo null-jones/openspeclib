@@ -10,3 +10,8 @@ export function getParquetUrl(source: string): string {
   const path = `${BASE}data/${source}.parquet`;
   return new URL(path, window.location.origin).href;
 }
+
+/** Absolute URL for the master wavelength grid registry. */
+export function getWavelengthsUrl(): string {
+  return getParquetUrl('wavelengths');
+}

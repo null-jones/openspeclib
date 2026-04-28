@@ -16,15 +16,14 @@ OpenSpecLib addresses this fragmentation by ingesting spectral data from multipl
 
 ### Currently Included
 
-The following sources are ingested into the published master library (v0.0.5):
+The following sources are ingested into the published master library:
 
 | Source | Materials | Wavelength Range | Spectra |
 |---|---|---|---|
 | [USGS Spectral Library Version 7](https://doi.org/10.5066/F7RR1WDJ) | Minerals, rocks, soils, vegetation, water, man-made | 0.2 -- 200 um | ~2,500 |
 | [ECOSTRESS Spectral Library](https://speclib.jpl.nasa.gov) | Minerals, rocks, soils, vegetation, man-made, meteorites | 0.35 -- 15.4 um | ~3,400 |
-| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials (curated subset) | 350 -- 2500 nm | ~17,000 |
-
-**Total: ~22,900 spectra** across 3 source libraries.
+| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials (curated subset) | 350 -- 2500 nm | ~115,000 |
+| [OSSL — Open Soil Spectral Library](https://soilspectroscopy.github.io/ossl-manual/) | Soils (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS) — VNIR + MIR | 350 -- 2500 nm + 600 -- 4000 cm-1 | ~80,000 |
 
 ### Planned for Future Releases
 
@@ -127,7 +126,8 @@ openspeclib validate ./library/
 The master library uses a two-tier architecture:
 
 - **Catalog** (`catalog.json`) — Complete metadata index for every spectrum. No spectral arrays. Small enough to load in memory for search and discovery.
-- **Library chunks** (`spectra/{source}/{category}.parquet`) — Full spectrum records including wavelength and value arrays, partitioned by source and material category. Stored as Apache Parquet (zstd-compressed) for fast columnar queries via DuckDB / Polars / pandas.
+- **Per-source Parquet files** (`spectra/{source}.parquet`) — Full spectrum records, one Parquet file per source, sorted by `id` with column statistics enabled so consumers can prune row groups via HTTP Range requests. Stored as Apache Parquet (zstd-compressed) for fast columnar queries via DuckDB / Polars / pandas.
+- **Wavelength grid registry** (`spectra/wavelengths.parquet`) — A small side file mapping each unique wavelength axis to a `grid_id`. Per-source rows reference this id rather than carrying the full axis inline, so each axis is stored once across the whole library.
 
 Each spectrum record contains:
 
@@ -137,6 +137,10 @@ Each spectrum record contains:
 - **Measurement conditions** — instrument, technique, laboratory, geometry
 - **Spectral data** — wavelength axis, values, bandpass, unit information
 - **Quality indicators** — bad band detection, coverage fraction
+
+#### Reflectance scale
+
+OpenSpecLib **assumes every source reflectance scale is a power-of-10 multiplier of the unit interval** — i.e. one of `{0–1, 0–100, 0–10000}` (divisor in `{1, 100, 10000}`). This covers every variant we have observed across USGS, ECOSTRESS, and ECOSIS, and matches the conventions used across the broader remote sensing literature. All values in a combined library are normalised to the **0–1 unit interval** at ingest so spectra from any source can be plotted on a shared axis. The pre-normalisation source divisor, when non-trivial, is preserved per-record in `additional_properties.source_reflectance_divisor` for provenance.
 
 See [docs/data-structure.md](docs/data-structure.md) for the full schema specification.
 

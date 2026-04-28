@@ -18,19 +18,26 @@ Each catalog entry includes a `chunk_file` reference that identifies the per-sou
 
 ### Tier 2: Per-source Parquet files (`spectra/{source}.parquet`)
 
-Spectral data is stored as one [Apache Parquet](https://parquet.apache.org/) file per source library, [zstd](https://facebook.github.io/zstd/)-compressed, with one row per spectrum and nested Pydantic models flattened to dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`). Partial reads are handled inside each file via Parquet row groups — Parquet readers (DuckDB, Polars, pyarrow, duckdb-wasm, hyparquet) fetch only the footer plus the row groups matching your predicate, so category-style filtering is just a column predicate and there's no file-count explosion for large sources. The full column reference and querying examples live in `schemas/library.parquet-schema.md`.
+Spectral data is stored as one [Apache Parquet](https://parquet.apache.org/) file per source library, [zstd](https://facebook.github.io/zstd/)-compressed, with one row per spectrum and nested Pydantic models flattened to dot-separated columns (e.g. `material.name`, `spectral_data.values`). Per-source files are sorted by `id` and written with Parquet column statistics enabled, so `WHERE id IN (...)` lookups served over HTTP Range requests prune to one or two row groups instead of scanning the file. Row groups default to 250 spectra. The full column reference and querying examples live in `schemas/library.parquet-schema.md`.
+
+### Tier 2b: Wavelength grid registry (`spectra/wavelengths.parquet`)
+
+Wavelength axes are heavily redundant in practice (USGS uses ~3 unique grids across 2.5k spectra; ECOSIS ~10 across 17k), so each unique `(wavelength_unit, wavelengths)` pair is stored once in `spectra/wavelengths.parquet` and referenced from each per-source row by an `int32` `spectral_data.wavelength_grid_id`. This shrinks per-source files materially and lets HTTP clients (e.g. the viewer) load the registry once at init.
 
 ```
 library/
 ├── catalog.json
 ├── VERSION
 └── spectra/
+    ├── wavelengths.parquet
     ├── usgs_splib07.parquet
     ├── ecostress.parquet
     ├── relab.parquet
     ├── asu_tes.parquet
     └── bishop.parquet
 ```
+
+`read_chunk` and `iter_records` automatically locate the sibling `wavelengths.parquet` and rehydrate `SpectralData.wavelengths` for callers, so consumers using the Pydantic surface never see the `grid_id` indirection.
 
 File-level metadata (`openspeclib_version`, `source`) is stored in the Parquet file's footer key-value metadata. The row count is read from Parquet's native `num_rows`, not a separate footer key, so the two can never drift.
 
@@ -118,8 +125,19 @@ The spectral measurement data and associated axis information.
 | `wavelengths` | number[] | yes* | Wavelength (or wavenumber) axis values |
 | `values` | number[] | yes* | Spectral measurement values |
 | `bandpass` | number[] | no | Bandpass (FWHM) at each wavelength position |
+| `reflectance_scale` | enum | yes | `unit` (0–1) or `percent` (0–100). Combined libraries always store `unit`; loaders normalise on ingest. |
 
-*In catalog entries, `wavelengths`, `values`, and `bandpass` are omitted. In Parquet chunks, these fields appear as columns named `spectral_data.wavelengths`, `spectral_data.values`, and `spectral_data.bandpass` (`list<float64>`).
+*In catalog entries, `wavelengths`, `values`, and `bandpass` are omitted. In per-source Parquet chunks, `wavelengths` is replaced by the `spectral_data.wavelength_grid_id` column (an `int32` reference into the side `spectra/wavelengths.parquet` registry); `values` and `bandpass` remain inline as `list<float64>`.
+
+#### Reflectance scale convention
+
+Every record carries `spectral_data.reflectance_scale`. In a combined library this is always `"unit"` — loaders normalise their source data to the 0–1 unit interval at ingest so every spectrum can be plotted on a shared axis.
+
+OpenSpecLib **assumes every source reflectance scale is a power-of-10 multiplier of the unit interval** — i.e. one of `{0–1, 0–100, 0–10000}` with divisor in `{1, 100, 10000}`. This covers every variant we have observed across USGS, ECOSTRESS, and ECOSIS, and matches conventions used across the broader remote sensing literature (1.0 = unit reflectance; 100 = percent reflectance; 10000 = the int16 scaled-reflectance convention used by some satellite products). Other multipliers (0–10, 0–1000) have not been observed in practice; if such a dataset appears the inference will warn and fall back to the largest known divisor.
+
+ECOSIS aggregates user-submitted datasets and the source scale varies per dataset, so the loader infers it at ingest from the data itself: it computes each spectrum's max value, takes the **median** across all spectra in the dataset, and picks the smallest divisor in `{1, 100, 10000}` that brings that median below ~1.5. Using the median resists a few noisy outlier spectra flipping the classification. When a non-unit divisor is applied, it is recorded in `additional_properties.source_reflectance_divisor` for provenance.
+
+USGS and ECOSTRESS are uniformly 0–1 in the source data and pass through with divisor 1.
 
 ### `additional_properties` (object, required)
 
@@ -151,6 +169,9 @@ Spectra are stored in their native wavelength domain to prevent interpolation ar
 | RELAB | Optical | `um` (micrometers) | 0.3 -- 26 um |
 | ASU TES | Thermal Infrared | `cm-1` (wavenumbers) | 220 -- 2000 cm-1 |
 | Bishop | Optical | `um` (micrometers) | 0.3 -- 25 um |
+| EcoSIS | Optical | `nm` (nanometers) | 350 -- 2500 nm |
+| OSSL VisNIR | Optical | `nm` (nanometers) | 350 -- 2500 nm |
+| OSSL MIR | Mid-Infrared | `cm-1` (wavenumbers) | 600 -- 4000 cm-1 (absorbance) |
 
 The `openspeclib.units` module provides conversion functions between all supported units for downstream analysis.
 
