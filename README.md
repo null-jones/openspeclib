@@ -16,14 +16,17 @@ OpenSpecLib addresses this fragmentation by ingesting spectral data from multipl
 
 ### Currently Included
 
-The following sources are ingested into the published master library:
+The following sources are ingested into the published master library (v0.0.6):
 
 | Source | Materials | Wavelength Range | Spectra |
 |---|---|---|---|
 | [USGS Spectral Library Version 7](https://doi.org/10.5066/F7RR1WDJ) | Minerals, rocks, soils, vegetation, water, man-made | 0.2 -- 200 um | ~2,500 |
 | [ECOSTRESS Spectral Library](https://speclib.jpl.nasa.gov) | Minerals, rocks, soils, vegetation, man-made, meteorites | 0.35 -- 15.4 um | ~3,400 |
-| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials (curated subset) | 350 -- 2500 nm | ~115,000 |
-| [OSSL — Open Soil Spectral Library](https://soilspectroscopy.github.io/ossl-manual/) | Soils (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS) — VNIR + MIR | 350 -- 2500 nm + 600 -- 4000 cm-1 | ~80,000 |
+| [EcoSIS](https://ecosis.org) | Vegetation, canopy, soil, water, urban materials (curated subset) | 350 -- 2500 nm | ~27,000 |
+
+**Total: ~33,000 spectra** across 3 source libraries.
+
+A loader for [OSSL — Open Soil Spectral Library](https://soilspectroscopy.github.io/ossl-manual/) (~80,000 soil samples spanning KSSL, AfSIS, ICRAF-ISRIC, NEON, and LUCAS, with paired VisNIR reflectance and MIR absorbance) is implemented and planned for an upcoming release.
 
 ### Planned for Future Releases
 

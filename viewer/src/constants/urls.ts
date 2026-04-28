@@ -1,7 +1,7 @@
 // Data files are served from public/data/ (same origin, no CORS issues).
 const BASE = import.meta.env.BASE_URL;
 
-export const OPENSPECLIB_VERSION = '0.0.5';
+export const OPENSPECLIB_VERSION = '0.0.6';
 export const CATALOG_URL = `${BASE}data/openspeclib-catalog-${OPENSPECLIB_VERSION}.json`;
 export const LICENSES_URL = `${BASE}data/licenses.json`;
 

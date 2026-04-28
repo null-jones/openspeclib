@@ -5,7 +5,7 @@ import { getParquetUrl, getWavelengthsUrl } from '../constants/urls';
 let db: duckdb.AsyncDuckDB | null = null;
 let conn: duckdb.AsyncDuckDBConnection | null = null;
 
-export const SOURCES = ['usgs_splib07', 'ecosis', 'ecostress', 'ossl'];
+export const SOURCES = ['usgs_splib07', 'ecosis', 'ecostress'];
 
 // In-memory wavelength grid registry, populated once on initDuckDB and shared
 // by every subsequent fetchSpectraByIds call. Keyed by grid_id (int32) so

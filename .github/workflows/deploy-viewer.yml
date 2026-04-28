@@ -36,7 +36,7 @@ jobs:
       - name: Download release data
         working-directory: viewer/public/data
         run: |
-          gh release download v0.0.5 \
+          gh release download v0.0.6 \
             --repo null-jones/openspeclib \
             --pattern "*.json" \
             --pattern "*.parquet" \

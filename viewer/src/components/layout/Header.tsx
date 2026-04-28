@@ -102,11 +102,11 @@ function InfoModal({ onClose }: { onClose: () => void }) {
             <h3 className="font-semibold text-gray-900 mb-1">Data Sources</h3>
             <p className="text-gray-600">
               Currently includes spectra from <strong>USGS Spectral Library v7</strong>,{' '}
-              <strong>ECOSTRESS</strong>, <strong>EcoSIS</strong>, and{' '}
-              <strong>OSSL (Open Soil Spectral Library)</strong>. OSSL contributes
-              ~80,000 soil samples (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS) with both
-              VisNIR reflectance and MIR absorbance spectra. Additional sources (RELAB,
-              ASU TES, Bishop) are planned for future releases.
+              <strong>ECOSTRESS</strong>, and <strong>EcoSIS</strong> — about 33,000
+              spectra in total, with vegetation coverage substantially expanded in v0.0.6
+              (canopy, leaf, biodiversity datasets). The OSSL (Open Soil Spectral Library)
+              loader is implemented and planned for an upcoming release, along with RELAB,
+              ASU TES, and the Bishop library.
             </p>
           </div>
 
