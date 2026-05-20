@@ -21,6 +21,19 @@ export type MeasurementTechnique =
 
 export type WavelengthUnit = 'um' | 'nm' | 'cm-1';
 
+export interface Dataset {
+  id: string;
+  title: string;
+  description: string | null;
+  url: string | null;
+  license: string | null;
+  license_url: string | null;
+  citation: string | null;
+  citation_doi: string | null;
+  authors: string | null;
+  organization: string | null;
+}
+
 export interface CatalogRecord {
   id: string;
   name: string;
@@ -33,6 +46,7 @@ export interface CatalogRecord {
     url: string;
     license: string;
     citation: string;
+    dataset: Dataset | null;
   };
   material: {
     name: string;
@@ -57,6 +71,11 @@ export interface CatalogRecord {
     technique: MeasurementTechnique;
     geometry: string | null;
     date: string | null;
+    processing: string[];
+    light_source: string | null;
+    venue: string | null;
+    acquisition_method: string | null;
+    foreoptic: string | null;
   };
   spectral_data: {
     type: MeasurementTechnique;
@@ -92,6 +111,19 @@ export interface CatalogFile {
   spectra: CatalogRecord[];
 }
 
+export interface DatasetLicenseEntry {
+  id: string;
+  title: string;
+  url: string | null;
+  license: string | null;
+  license_url: string | null;
+  citation: string | null;
+  citation_doi: string | null;
+  authors: string | null;
+  organization: string | null;
+  spectrum_count: number;
+}
+
 export interface LicenseEntry {
   name: string;
   version: string;
@@ -100,6 +132,7 @@ export interface LicenseEntry {
   license_url: string | null;
   citation: string;
   citation_doi: string | null;
+  datasets: Record<string, DatasetLicenseEntry> | null;
 }
 
 export interface LicensesFile {
@@ -121,4 +154,6 @@ export interface SpectrumFull {
   wavelengths: number[];
   values: number[];
   source_library: string;
+  dataset_title: string | null;
+  dataset_license: string | null;
 }

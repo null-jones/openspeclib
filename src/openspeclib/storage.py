@@ -37,6 +37,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from openspeclib.models import (
+    Dataset,
     LibraryChunkFile,
     Material,
     Measurement,
@@ -78,6 +79,17 @@ def _build_arrow_schema() -> pa.Schema:
         pa.field("source.url", pa.string(), nullable=False),
         pa.field("source.license", pa.string(), nullable=False),
         pa.field("source.citation", pa.string(), nullable=False),
+        # source.dataset — populated for aggregated sources (ECOSIS, OSSL).
+        pa.field("source.dataset.id", pa.string(), nullable=True),
+        pa.field("source.dataset.title", pa.string(), nullable=True),
+        pa.field("source.dataset.description", pa.string(), nullable=True),
+        pa.field("source.dataset.url", pa.string(), nullable=True),
+        pa.field("source.dataset.license", pa.string(), nullable=True),
+        pa.field("source.dataset.license_url", pa.string(), nullable=True),
+        pa.field("source.dataset.citation", pa.string(), nullable=True),
+        pa.field("source.dataset.citation_doi", pa.string(), nullable=True),
+        pa.field("source.dataset.authors", pa.string(), nullable=True),
+        pa.field("source.dataset.organization", pa.string(), nullable=True),
         # material
         pa.field("material.name", pa.string(), nullable=False),
         pa.field("material.category", pa.string(), nullable=False),
@@ -99,6 +111,11 @@ def _build_arrow_schema() -> pa.Schema:
         pa.field("measurement.technique", pa.string(), nullable=False),
         pa.field("measurement.geometry", pa.string(), nullable=True),
         pa.field("measurement.date", pa.date32(), nullable=True),
+        pa.field("measurement.processing", pa.list_(pa.string()), nullable=False),
+        pa.field("measurement.light_source", pa.string(), nullable=True),
+        pa.field("measurement.venue", pa.string(), nullable=True),
+        pa.field("measurement.acquisition_method", pa.string(), nullable=True),
+        pa.field("measurement.foreoptic", pa.string(), nullable=True),
         # spectral_data — wavelengths are referenced by grid_id, see
         # WAVELENGTHS_ARROW_SCHEMA below.
         pa.field("spectral_data.type", pa.string(), nullable=False),
@@ -338,6 +355,17 @@ def _records_to_table(
         columns["source.url"].append(s.url)
         columns["source.license"].append(s.license)
         columns["source.citation"].append(s.citation)
+        ds = s.dataset
+        columns["source.dataset.id"].append(ds.id if ds else None)
+        columns["source.dataset.title"].append(ds.title if ds else None)
+        columns["source.dataset.description"].append(ds.description if ds else None)
+        columns["source.dataset.url"].append(ds.url if ds else None)
+        columns["source.dataset.license"].append(ds.license if ds else None)
+        columns["source.dataset.license_url"].append(ds.license_url if ds else None)
+        columns["source.dataset.citation"].append(ds.citation if ds else None)
+        columns["source.dataset.citation_doi"].append(ds.citation_doi if ds else None)
+        columns["source.dataset.authors"].append(ds.authors if ds else None)
+        columns["source.dataset.organization"].append(ds.organization if ds else None)
 
         m = r.material
         columns["material.name"].append(m.name)
@@ -362,6 +390,11 @@ def _records_to_table(
         columns["measurement.technique"].append(_enum_value(me.technique))
         columns["measurement.geometry"].append(me.geometry)
         columns["measurement.date"].append(me.date)
+        columns["measurement.processing"].append(list(me.processing))
+        columns["measurement.light_source"].append(me.light_source)
+        columns["measurement.venue"].append(me.venue)
+        columns["measurement.acquisition_method"].append(me.acquisition_method)
+        columns["measurement.foreoptic"].append(me.foreoptic)
 
         sd = r.spectral_data
         wavelength_unit = _enum_value(sd.wavelength_unit)
@@ -412,6 +445,37 @@ def _json_default(value: Any) -> Any:
     raise TypeError(f"Object of type {type(value).__name__} is not JSON serialisable")
 
 
+def _dataset_from_row(row: dict[str, Any]) -> Optional[Dataset]:
+    """Reconstruct a ``Dataset`` from a row dict if dataset columns are populated.
+
+    A row is considered to carry a dataset when ``source.dataset.id`` is
+    non-null; otherwise the row's source is monolithic and ``None`` is
+    returned so the resulting ``Source.dataset`` field stays empty.
+
+    Args:
+        row: Row dict from ``pa.Table.to_pylist()``.
+
+    Returns:
+        A ``Dataset`` instance, or ``None`` if no dataset is recorded.
+    """
+    ds_id = row.get("source.dataset.id")
+    ds_title = row.get("source.dataset.title")
+    if not ds_id or not ds_title:
+        return None
+    return Dataset(
+        id=ds_id,
+        title=ds_title,
+        description=row.get("source.dataset.description"),
+        url=row.get("source.dataset.url"),
+        license=row.get("source.dataset.license"),
+        license_url=row.get("source.dataset.license_url"),
+        citation=row.get("source.dataset.citation"),
+        citation_doi=row.get("source.dataset.citation_doi"),
+        authors=row.get("source.dataset.authors"),
+        organization=row.get("source.dataset.organization"),
+    )
+
+
 def _rows_to_records(
     rows: list[dict[str, Any]],
     registry: Optional[WavelengthRegistry] = None,
@@ -447,6 +511,7 @@ def _rows_to_records(
                     url=row["source.url"],
                     license=row["source.license"],
                     citation=row["source.citation"],
+                    dataset=_dataset_from_row(row),
                 ),
                 material=Material(
                     name=row["material.name"],
@@ -471,6 +536,11 @@ def _rows_to_records(
                     technique=row["measurement.technique"],
                     geometry=row["measurement.geometry"],
                     date=row["measurement.date"],
+                    processing=list(row["measurement.processing"] or []),
+                    light_source=row["measurement.light_source"],
+                    venue=row["measurement.venue"],
+                    acquisition_method=row["measurement.acquisition_method"],
+                    foreoptic=row["measurement.foreoptic"],
                 ),
                 spectral_data=SpectralData(
                     type=row["spectral_data.type"],

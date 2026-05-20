@@ -63,6 +63,43 @@ class WavelengthUnit(str, Enum):
 # ---------------------------------------------------------------------------
 
 
+class Dataset(BaseModel):
+    """Nested dataset within an aggregated source library.
+
+    ECOSIS bundles many researcher-contributed packages and OSSL aggregates
+    contributing soil libraries; each carries its own title, license, DOI,
+    and authorship. ``Dataset`` captures that per-package metadata so it
+    survives ingest. Left ``None`` for monolithic sources (USGS, ECOSTRESS,
+    RELAB, ASU TES, Bishop).
+    """
+
+    id: str = Field(description="Identifier of the contributing dataset within the source.")
+    title: str = Field(description="Human-readable title of the contributing dataset.")
+    description: Optional[str] = Field(
+        default=None, description="Free-text description of the dataset."
+    )
+    url: Optional[str] = Field(default=None, description="URL to the dataset's landing page.")
+    license: Optional[str] = Field(
+        default=None,
+        description="License governing this specific dataset (may differ per dataset).",
+    )
+    license_url: Optional[str] = Field(
+        default=None, description="URL to the full license text, if available."
+    )
+    citation: Optional[str] = Field(
+        default=None, description="Recommended citation for this dataset."
+    )
+    citation_doi: Optional[str] = Field(
+        default=None, description="DOI for the citation, if available."
+    )
+    authors: Optional[str] = Field(
+        default=None, description="Authors of the dataset (semicolon-delimited)."
+    )
+    organization: Optional[str] = Field(
+        default=None, description="Contributing organization or institution."
+    )
+
+
 class Source(BaseModel):
     """Provenance information linking a spectrum to its origin library."""
 
@@ -75,6 +112,13 @@ class Source(BaseModel):
     url: str = Field(description="DOI or URL for the source library.")
     license: str = Field(description="License governing the source data.")
     citation: str = Field(description="Recommended citation string.")
+    dataset: Optional[Dataset] = Field(
+        default=None,
+        description=(
+            "Contributing dataset metadata for aggregated sources (ECOSIS packages, "
+            "OSSL contributors). ``None`` for monolithic sources."
+        ),
+    )
 
 
 class Material(BaseModel):
@@ -132,6 +176,31 @@ class Measurement(BaseModel):
     )
     date: Optional[_dt.date] = Field(
         default=None, description="Date the measurement was acquired (ISO 8601)."
+    )
+    processing: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Processing flags applied to the values, in order of relevance to the "
+            "consumer (e.g. ``averaged``, ``interpolated``, ``resampled``, "
+            "``continuum_removed``, ``smoothed``). Free-text rather than a closed "
+            "enum so loaders can pass through source-specific labels."
+        ),
+    )
+    light_source: Optional[str] = Field(
+        default=None,
+        description="Illumination source (e.g. sun, lamp, contact_probe).",
+    )
+    venue: Optional[str] = Field(
+        default=None,
+        description="Measurement venue (e.g. field, greenhouse, laboratory).",
+    )
+    acquisition_method: Optional[str] = Field(
+        default=None,
+        description="Acquisition method (e.g. contact, integrating_sphere, imaging_spectrometer).",
+    )
+    foreoptic: Optional[str] = Field(
+        default=None,
+        description="Foreoptic used for the measurement (e.g. leaf clip, bare fibre, pistol grip).",
     )
 
 
@@ -314,6 +383,35 @@ class LibraryChunkFile(BaseModel):
     spectra: list[SpectrumRecord] = Field(description="Full spectrum records.")
 
 
+class DatasetLicenseEntry(BaseModel):
+    """Per-dataset license entry for aggregated sources.
+
+    Captures the license, DOI, and spectrum count for one contributing
+    dataset within a source library. Used to break down the umbrella license
+    of aggregated sources (notably ECOSIS) into the actual mix of licenses
+    that the contributing datasets carry.
+    """
+
+    id: str = Field(description="Identifier of the contributing dataset within the source.")
+    title: str = Field(description="Human-readable title of the contributing dataset.")
+    url: Optional[str] = Field(default=None, description="URL to the dataset's landing page.")
+    license: Optional[str] = Field(default=None, description="License governing this dataset.")
+    license_url: Optional[str] = Field(
+        default=None, description="URL to the full license text, if available."
+    )
+    citation: Optional[str] = Field(
+        default=None, description="Recommended citation for this dataset."
+    )
+    citation_doi: Optional[str] = Field(
+        default=None, description="DOI for the citation, if available."
+    )
+    authors: Optional[str] = Field(default=None, description="Authors of the dataset.")
+    organization: Optional[str] = Field(
+        default=None, description="Contributing organization or institution."
+    )
+    spectrum_count: int = Field(ge=0, description="Number of spectra from this dataset.")
+
+
 class LicenseEntry(BaseModel):
     """Licensing and citation information for a single source library."""
 
@@ -327,6 +425,13 @@ class LicenseEntry(BaseModel):
     citation: str = Field(description="Recommended citation string.")
     citation_doi: Optional[str] = Field(
         default=None, description="DOI for the citation, if available."
+    )
+    datasets: Optional[dict[str, DatasetLicenseEntry]] = Field(
+        default=None,
+        description=(
+            "Per-dataset breakdown for aggregated sources (ECOSIS, OSSL), keyed by "
+            "dataset id. ``None`` for monolithic sources."
+        ),
     )
 
 

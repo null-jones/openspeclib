@@ -81,6 +81,86 @@
         "nullable": false
       },
       {
+        "name": "source.dataset.id",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.title",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.description",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.url",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.license",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.license_url",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.citation",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.citation_doi",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.authors",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "source.dataset.organization",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
         "name": "material.name",
         "type": {
           "kind": "primitive",
@@ -224,6 +304,49 @@
         "type": {
           "kind": "primitive",
           "type": "date32[day]"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.processing",
+        "type": {
+          "kind": "list",
+          "value_type": {
+            "kind": "primitive",
+            "type": "string"
+          }
+        },
+        "nullable": false
+      },
+      {
+        "name": "measurement.light_source",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.venue",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.acquisition_method",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
+        },
+        "nullable": true
+      },
+      {
+        "name": "measurement.foreoptic",
+        "type": {
+          "kind": "primitive",
+          "type": "string"
         },
         "nullable": true
       },

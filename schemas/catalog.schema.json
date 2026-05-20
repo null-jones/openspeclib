@@ -86,6 +86,131 @@
       "title": "CatalogStatistics",
       "type": "object"
     },
+    "Dataset": {
+      "description": "Nested dataset within an aggregated source library.\n\nECOSIS bundles many researcher-contributed packages and OSSL aggregates\ncontributing soil libraries; each carries its own title, license, DOI,\nand authorship. ``Dataset`` captures that per-package metadata so it\nsurvives ingest. Left ``None`` for monolithic sources (USGS, ECOSTRESS,\nRELAB, ASU TES, Bishop).",
+      "properties": {
+        "id": {
+          "description": "Identifier of the contributing dataset within the source.",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Human-readable title of the contributing dataset.",
+          "title": "Title",
+          "type": "string"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Free-text description of the dataset.",
+          "title": "Description"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the dataset's landing page.",
+          "title": "Url"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "License governing this specific dataset (may differ per dataset).",
+          "title": "License"
+        },
+        "license_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the full license text, if available.",
+          "title": "License Url"
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recommended citation for this dataset.",
+          "title": "Citation"
+        },
+        "citation_doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "DOI for the citation, if available.",
+          "title": "Citation Doi"
+        },
+        "authors": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Authors of the dataset (semicolon-delimited).",
+          "title": "Authors"
+        },
+        "organization": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contributing organization or institution.",
+          "title": "Organization"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "Dataset",
+      "type": "object"
+    },
     "Material": {
       "description": "Classification of the material whose spectrum was measured.",
       "properties": {
@@ -232,6 +357,66 @@
           "default": null,
           "description": "Date the measurement was acquired (ISO 8601).",
           "title": "Date"
+        },
+        "processing": {
+          "description": "Processing flags applied to the values, in order of relevance to the consumer (e.g. ``averaged``, ``interpolated``, ``resampled``, ``continuum_removed``, ``smoothed``). Free-text rather than a closed enum so loaders can pass through source-specific labels.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Processing",
+          "type": "array"
+        },
+        "light_source": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Illumination source (e.g. sun, lamp, contact_probe).",
+          "title": "Light Source"
+        },
+        "venue": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Measurement venue (e.g. field, greenhouse, laboratory).",
+          "title": "Venue"
+        },
+        "acquisition_method": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Acquisition method (e.g. contact, integrating_sphere, imaging_spectrometer).",
+          "title": "Acquisition Method"
+        },
+        "foreoptic": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Foreoptic used for the measurement (e.g. leaf clip, bare fibre, pistol grip).",
+          "title": "Foreoptic"
         }
       },
       "required": [
@@ -435,6 +620,18 @@
           "description": "Recommended citation string.",
           "title": "Citation",
           "type": "string"
+        },
+        "dataset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Dataset"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contributing dataset metadata for aggregated sources (ECOSIS packages, OSSL contributors). ``None`` for monolithic sources."
         }
       },
       "required": [

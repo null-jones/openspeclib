@@ -17,6 +17,7 @@ from openspeclib.models import (
     CatalogFile,
     CatalogRecord,
     CatalogStatistics,
+    DatasetLicenseEntry,
     LicenseEntry,
     LicensesFile,
     SourceInfo,
@@ -66,6 +67,42 @@ _SOURCE_EXTRA: dict[str, dict[str, str | None]] = {
 }
 
 
+def _build_dataset_license_entries(
+    rollup: dict[str, tuple[SpectrumRecord, int]],
+) -> dict[str, DatasetLicenseEntry] | None:
+    """Convert a per-source dataset rollup into ``DatasetLicenseEntry`` records.
+
+    Args:
+        rollup: Mapping of ``dataset_id`` to ``(first_record_seen, count)``.
+
+    Returns:
+        Mapping of ``dataset_id`` to ``DatasetLicenseEntry`` ordered by
+        descending spectrum count, or ``None`` when the rollup is empty
+        (monolithic sources).
+    """
+    if not rollup:
+        return None
+    items = sorted(rollup.items(), key=lambda kv: (-kv[1][1], kv[0]))
+    result: dict[str, DatasetLicenseEntry] = {}
+    for dataset_id, (record, count) in items:
+        ds = record.source.dataset
+        if ds is None:
+            continue
+        result[dataset_id] = DatasetLicenseEntry(
+            id=ds.id,
+            title=ds.title,
+            url=ds.url,
+            license=ds.license,
+            license_url=ds.license_url,
+            citation=ds.citation,
+            citation_doi=ds.citation_doi,
+            authors=ds.authors,
+            organization=ds.organization,
+            spectrum_count=count,
+        )
+    return result or None
+
+
 def build_library(
     record_streams: dict[str, Iterator[SpectrumRecord]],
     source_metadata: dict[str, SourceInfo],
@@ -96,6 +133,10 @@ def build_library(
     # Track the first record per source so we can enrich placeholder SourceInfo.
     first_records: dict[str, SpectrumRecord] = {}
 
+    # Track per-source per-dataset rollups for aggregated sources (ECOSIS, OSSL):
+    # source -> dataset_id -> (Dataset template from first sighting, running count).
+    dataset_rollups: dict[str, dict[str, tuple[SpectrumRecord, int]]] = defaultdict(dict)
+
     # Wavelength axes are shared across spectra (USGS uses ~3 grids for ~2.5k
     # spectra; ECOSIS ~10 across ~17k); deduplicate them into a master
     # ``wavelengths.parquet`` and reference each by ``grid_id`` from the
@@ -125,6 +166,13 @@ def build_library(
                 )
                 source_counts[name] += 1
                 category_counts[record.material.category.value] += 1
+                ds = record.source.dataset
+                if ds is not None:
+                    existing = dataset_rollups[name].get(ds.id)
+                    if existing is None:
+                        dataset_rollups[name][ds.id] = (record, 1)
+                    else:
+                        dataset_rollups[name][ds.id] = (existing[0], existing[1] + 1)
                 yield record
 
         storage.write_source(
@@ -197,6 +245,7 @@ def build_library(
     license_entries: dict[str, LicenseEntry] = {}
     for name, info in source_metadata.items():
         extras = _SOURCE_EXTRA.get(name, {})
+        datasets = _build_dataset_license_entries(dataset_rollups.get(name, {}))
         license_entries[name] = LicenseEntry(
             name=info.name,
             version=info.version,
@@ -205,6 +254,7 @@ def build_library(
             license_url=info.license_url or extras.get("license_url"),
             citation=info.citation,
             citation_doi=info.citation_doi or extras.get("citation_doi"),
+            datasets=datasets,
         )
 
     licenses_file = LicensesFile(

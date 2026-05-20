@@ -29,6 +29,15 @@ let dataPromise: Promise<void> | null = null;
 // ~2000-float wavelength array per row.
 let wavelengthGrids: Map<number, Float64Array> | null = null;
 
+// Schema introspection: pre-0.0.7 parquet files lack the source.dataset.*
+// columns. We probe each view at init time so fetchSpectraByIds can decide
+// per-source whether to SELECT the real column or project NULL.
+const sourceHasDatasetColumns = new Map<string, boolean>();
+
+export function hasDatasetColumns(source: string): boolean {
+  return sourceHasDatasetColumns.get(source) ?? false;
+}
+
 export function getWavelengthGrid(gridId: number): Float64Array {
   if (!wavelengthGrids) throw new Error('Wavelength registry not initialized');
   const grid = wavelengthGrids.get(gridId);
@@ -84,10 +93,34 @@ async function loadData(c: duckdb.AsyncDuckDBConnection): Promise<void> {
     c.query(`CREATE VIEW wavelengths AS SELECT * FROM '${getWavelengthsUrl()}'`),
   ]);
 
+  // Probe each source view for the post-0.0.7 dataset columns. We do this
+  // once at init so per-query SELECTs don't pay the DESCRIBE round-trip.
+  await Promise.all(SOURCES.map((s) => detectDatasetColumns(c, s)));
+
   // Materialise the wavelength grid registry once. The file is small (~100s
   // of KB) and every spectral fetch needs it to rehydrate the wavelength
   // axis from a grid_id reference.
   wavelengthGrids = await loadWavelengthGrids(c);
+}
+
+async function detectDatasetColumns(
+  c: duckdb.AsyncDuckDBConnection,
+  source: string,
+): Promise<void> {
+  try {
+    const r = await c.query(`DESCRIBE SELECT * FROM ${source} LIMIT 0`);
+    let found = false;
+    for (let i = 0; i < r.numRows; i++) {
+      const row = r.get(i);
+      if (row && (row.column_name as string) === 'source.dataset.title') {
+        found = true;
+        break;
+      }
+    }
+    sourceHasDatasetColumns.set(source, found);
+  } catch {
+    sourceHasDatasetColumns.set(source, false);
+  }
 }
 
 async function loadWavelengthGrids(

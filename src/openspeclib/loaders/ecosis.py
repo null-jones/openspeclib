@@ -27,6 +27,7 @@ from tqdm import tqdm
 from openspeclib.loaders.base import BaseLoader
 from openspeclib.loaders.ecosis_scales import infer_dataset_divisor
 from openspeclib.models import (
+    Dataset,
     Material,
     MaterialCategory,
     Measurement,
@@ -135,6 +136,55 @@ def _classify_target_type(target_types: list[str]) -> MaterialCategory:
         if key in ECOSIS_CATEGORY_MAP:
             return ECOSIS_CATEGORY_MAP[key]
     return MaterialCategory.OTHER
+
+
+def _first_nonempty(values: list[str]) -> str | None:
+    """Return the first non-empty trimmed string in ``values``, or ``None``.
+
+    ECOSIS exposes single-valued metadata fields as one-element lists; this
+    helper unwraps them while tolerating empty strings and missing entries.
+
+    Args:
+        values: List of candidate values from an ECOSIS metadata field.
+
+    Returns:
+        The first non-empty stripped string, or ``None`` if none qualify.
+    """
+    for raw in values or []:
+        if raw is None:
+            continue
+        text = str(raw).strip()
+        if text:
+            return text
+    return None
+
+
+def _processing_flags(metadata: dict[str, Any]) -> list[str]:
+    """Translate ECOSIS Processing * fields into a flat list of flags.
+
+    ECOSIS records processing as separate ``Processing Averaged``,
+    ``Processing Interpolated``, and ``Processing Resampled`` lists, each
+    holding ``["yes"]`` or ``["no"]``. We project the affirmative answers
+    onto canonical lower-case flag names that fit ``Measurement.processing``.
+
+    Args:
+        metadata: The full ECOSIS package metadata dict.
+
+    Returns:
+        Ordered list of processing flags applied to the data.
+    """
+    flags: list[str] = []
+    mapping = (
+        ("Processing Averaged", "averaged"),
+        ("Processing Interpolated", "interpolated"),
+        ("Processing Resampled", "resampled"),
+    )
+    for field, flag in mapping:
+        for raw in metadata.get(field, []) or []:
+            if str(raw).strip().lower() == "yes":
+                flags.append(flag)
+                break
+    return flags
 
 
 def _detect_technique(
@@ -319,16 +369,49 @@ class EcosisLoader(BaseLoader):
             instrument = " ".join(filter(None, [instrument_mfr, instrument_model])) or None
             ecosystem = metadata.get("Ecosystem Type", [""])[0]
 
+            # Per-dataset license, DOI, description and acquisition context.
+            # ECOSIS packages each carry their own license (ODbL, CC-BY, etc.)
+            # so we surface the package's license rather than the umbrella
+            # EcoSIS Data Use Policy. Fall back to the umbrella only when the
+            # package omits the field.
+            dataset_license = ecosis_meta.get("license") or "EcoSIS Data Use Policy"
+            dataset_doi_raw = ecosis_meta.get("doi") or ""
+            dataset_doi = (
+                dataset_doi_raw.split("doi:", 1)[-1] if dataset_doi_raw else None
+            ) or None
+            dataset_description = (
+                ecosis_meta.get("description") or ecosis_meta.get("sort_description") or None
+            )
+
+            light_source = _first_nonempty(metadata.get("Light Source", []))
+            venue = _first_nonempty(metadata.get("Measurement Venue", []))
+            acquisition_method = _first_nonempty(metadata.get("Acquisition Method", []))
+            foreoptic = _first_nonempty(metadata.get("Foreoptic Type", []))
+            processing_flags = _processing_flags(metadata)
+
             technique = _detect_technique(dataset_mq)
             dataset_url = f"https://ecosis.org/package/{dataset_id}"
+
+            dataset_template = Dataset(
+                id=dataset_id,
+                title=dataset_title,
+                description=dataset_description,
+                url=dataset_url,
+                license=dataset_license,
+                citation=citation or None,
+                citation_doi=dataset_doi,
+                authors=authors or None,
+                organization=organization or None,
+            )
 
             source_template = Source(
                 library=SourceLibrary.ECOSIS,
                 library_version="1.0",
                 original_id="",
                 url=dataset_url,
-                license="EcoSIS Data Use Policy",
+                license=dataset_license,
                 citation=citation,
+                dataset=dataset_template,
             )
 
             # Pre-pass: parse every spectrum's datapoints so we can infer
@@ -455,6 +538,11 @@ class EcosisLoader(BaseLoader):
                             instrument=instrument,
                             technique=technique,
                             laboratory=organization or None,
+                            processing=list(processing_flags),
+                            light_source=light_source,
+                            venue=venue,
+                            acquisition_method=acquisition_method,
+                            foreoptic=foreoptic,
                         ),
                         spectral_data=SpectralData(
                             type=technique,

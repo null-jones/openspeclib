@@ -38,6 +38,7 @@ from tqdm import tqdm
 
 from openspeclib.loaders.base import BaseLoader
 from openspeclib.models import (
+    Dataset,
     Material,
     MaterialCategory,
     Measurement,
@@ -205,7 +206,20 @@ def _build_record(
         if v not in (None, ""):
             additional[k] = v
 
-    name_parts = [str(additional.get("dataset.code_ascii_txt", "OSSL")), layer_uuid[:8]]
+    dataset_code = str(additional.get("dataset.code_ascii_txt") or "").strip()
+    dataset_title = str(additional.get("dataset.title_utf8_txt") or dataset_code).strip()
+    dataset_obj: Dataset | None = None
+    if dataset_code:
+        dataset_obj = Dataset(
+            id=dataset_code,
+            title=dataset_title or dataset_code,
+            license=OSSL_LICENSE,
+            license_url="https://creativecommons.org/licenses/by/4.0/",
+            url=OSSL_URL,
+            organization=dataset_code,
+        )
+
+    name_parts = [dataset_code or "OSSL", layer_uuid[:8]]
     if technique_short == "mir":
         name_parts.append("MIR")
     else:
@@ -222,6 +236,7 @@ def _build_record(
             url=OSSL_URL,
             license=OSSL_LICENSE,
             citation=OSSL_CITATION,
+            dataset=dataset_obj,
         ),
         material=Material(
             name="Soil",

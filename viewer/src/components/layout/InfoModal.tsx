@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { OPENSPECLIB_VERSION, RELEASE_URL } from '../../constants/urls';
 import { fetchChecksums, fetchLicenses } from '../../lib/catalog';
 import { useAppContext } from '../../state/AppContext';
-import type { LicensesFile } from '../../types/catalog';
+import type { DatasetLicenseEntry, LicensesFile } from '../../types/catalog';
 
 type TabId = 'overview' | 'data' | 'resampling' | 'licensing';
 
@@ -147,6 +147,103 @@ interface SourceRow {
   license?: string;
   citationDoi?: string | null;
   url?: string;
+  datasets?: Record<string, DatasetLicenseEntry> | null;
+}
+
+function DatasetBreakdown({
+  datasets,
+}: {
+  datasets: Record<string, DatasetLicenseEntry>;
+}) {
+  // Sorted by spectrum count desc; ties broken by title for stable order.
+  const entries = Object.values(datasets).sort(
+    (a, b) => b.spectrum_count - a.spectrum_count || a.title.localeCompare(b.title),
+  );
+  const totalEntries = entries.length;
+  const uniqueLicenses = new Set(
+    entries.map((d) => d.license).filter((x): x is string => Boolean(x)),
+  );
+
+  return (
+    <details className="mt-3 pt-3 border-t border-gray-100">
+      <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
+        Contributing datasets ({totalEntries.toLocaleString()}
+        {uniqueLicenses.size > 1 && (
+          <span className="text-amber-700"> · {uniqueLicenses.size} licenses</span>
+        )}
+        )
+      </summary>
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full text-[11px]">
+          <thead>
+            <tr className="text-gray-400 uppercase tracking-wide">
+              <th className="text-left font-medium px-2 py-1">Dataset</th>
+              <th className="text-left font-medium px-2 py-1">License</th>
+              <th className="text-left font-medium px-2 py-1">DOI</th>
+              <th className="text-right font-medium px-2 py-1">Spectra</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {entries.map((d) => (
+              <tr key={d.id} className="align-top">
+                <td className="px-2 py-1 max-w-[260px]">
+                  {d.url ? (
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 underline"
+                      title={d.title}
+                    >
+                      {d.title}
+                    </a>
+                  ) : (
+                    <span className="text-gray-700" title={d.title}>
+                      {d.title}
+                    </span>
+                  )}
+                  {d.organization && (
+                    <div className="text-gray-400 text-[10px] mt-0.5">{d.organization}</div>
+                  )}
+                </td>
+                <td className="px-2 py-1 text-gray-700">
+                  {d.license_url ? (
+                    <a
+                      href={d.license_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-indigo-700"
+                    >
+                      {d.license ?? '—'}
+                    </a>
+                  ) : (
+                    d.license ?? '—'
+                  )}
+                </td>
+                <td className="px-2 py-1 font-mono">
+                  {d.citation_doi ? (
+                    <a
+                      href={`https://doi.org/${d.citation_doi}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:text-indigo-800 underline"
+                    >
+                      {d.citation_doi}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+                <td className="px-2 py-1 text-right text-gray-600 font-mono">
+                  {d.spectrum_count.toLocaleString()}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
 }
 
 function DataTab() {
@@ -184,6 +281,7 @@ function DataTab() {
         license: info.license,
         citationDoi: info.citation_doi,
         url: info.url,
+        datasets: info.datasets ?? null,
       });
     }
   } else {
@@ -267,6 +365,9 @@ function DataTab() {
                   </>
                 )}
               </dl>
+              {r.datasets && Object.keys(r.datasets).length > 0 && (
+                <DatasetBreakdown datasets={r.datasets} />
+              )}
             </div>
           );
         })}

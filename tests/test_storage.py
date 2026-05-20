@@ -8,6 +8,7 @@ import pyarrow.parquet as pq
 import pytest
 
 from openspeclib.models import (
+    Dataset,
     Material,
     MaterialCategory,
     Measurement,
@@ -127,6 +128,68 @@ def test_spectrum_count_derived_from_num_rows(
     chunk = read_chunk(path)
     assert chunk.spectrum_count == 7
     assert len(chunk.spectra) == 7
+
+
+def test_dataset_and_processing_roundtrip(tmp_path: Path) -> None:
+    """Records carrying a Source.dataset and Measurement.processing flags
+    must round-trip through Parquet without losing the new fields."""
+    record = _build_minimal_record(spectrum_id="ecosis:pkg:sp")
+    record = record.model_copy(
+        update={
+            "source": record.source.model_copy(
+                update={
+                    "library": SourceLibrary.ECOSIS,
+                    "license": "Open Data Commons Open Database License (ODbL)",
+                    "dataset": Dataset(
+                        id="pkg",
+                        title="Pkg Title",
+                        description="A small contributing dataset.",
+                        url="https://ecosis.org/package/pkg",
+                        license="Open Data Commons Open Database License (ODbL)",
+                        license_url="https://opendatacommons.org/licenses/odbl/",
+                        citation_doi="10.21232/EXAMPLE",
+                        authors="Tester",
+                        organization="Test Org",
+                    ),
+                }
+            ),
+            "measurement": record.measurement.model_copy(
+                update={
+                    "processing": ["averaged", "continuum_removed"],
+                    "light_source": "lamp",
+                    "venue": "greenhouse",
+                    "acquisition_method": "contact",
+                    "foreoptic": "leaf clip",
+                }
+            ),
+        }
+    )
+
+    path = tmp_path / "ecosis.parquet"
+    write_source([record], path, source="ecosis")
+    chunk = read_chunk(path)
+
+    out = chunk.spectra[0]
+    assert out.source.dataset is not None
+    assert out.source.dataset.id == "pkg"
+    assert out.source.dataset.license == "Open Data Commons Open Database License (ODbL)"
+    assert out.source.dataset.citation_doi == "10.21232/EXAMPLE"
+    assert out.measurement.processing == ["averaged", "continuum_removed"]
+    assert out.measurement.light_source == "lamp"
+    assert out.measurement.venue == "greenhouse"
+    assert out.measurement.acquisition_method == "contact"
+    assert out.measurement.foreoptic == "leaf clip"
+
+
+def test_no_dataset_roundtrip_for_monolithic_source(tmp_path: Path) -> None:
+    """Monolithic sources (no dataset) must round-trip with dataset=None
+    and an empty processing list."""
+    record = _build_minimal_record()
+    path = tmp_path / "usgs_splib07.parquet"
+    write_source([record], path, source="usgs_splib07")
+    out = read_chunk(path).spectra[0]
+    assert out.source.dataset is None
+    assert out.measurement.processing == []
 
 
 def test_additional_properties_json_roundtrip(tmp_path: Path) -> None:

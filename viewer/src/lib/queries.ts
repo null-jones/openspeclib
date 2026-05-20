@@ -1,4 +1,4 @@
-import { getWavelengthGrid, query, SOURCES } from './duckdb';
+import { getWavelengthGrid, hasDatasetColumns, query, SOURCES } from './duckdb';
 import type { SpectrumFull } from '../types/catalog';
 
 /** Fetch full spectral data for a list of spectrum IDs. */
@@ -10,20 +10,29 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
   // referenced by an int32 grid_id from each spectrum row, so the per-spectrum
   // SELECT pulls only the small id reference. The full axis is rehydrated
   // client-side from the registry materialised at initDuckDB.
-  const columns = `
-      id,
-      name,
-      "material.name" AS material_name,
-      "material.category" AS material_category,
-      "material.formula" AS material_formula,
-      "measurement.technique" AS measurement_technique,
-      "spectral_data.wavelength_unit" AS wavelength_unit,
-      "spectral_data.wavelength_grid_id" AS wavelength_grid_id,
-      "spectral_data.values" AS "values",
-      "source.library" AS source_library`;
-  const sql = SOURCES.map(
-    (s) => `SELECT ${columns} FROM ${s} WHERE id IN (${inList})`,
-  ).join('\nUNION ALL\n');
+  //
+  // Dataset columns only exist on post-0.0.7 parquets; for older releases we
+  // project NULL so the resulting SpectrumFull keeps a stable shape.
+  const sql = SOURCES.map((s) => {
+    const datasetCols = hasDatasetColumns(s)
+      ? `"source.dataset.title" AS dataset_title,
+         "source.dataset.license" AS dataset_license`
+      : `NULL AS dataset_title,
+         NULL AS dataset_license`;
+    return `SELECT
+        id,
+        name,
+        "material.name" AS material_name,
+        "material.category" AS material_category,
+        "material.formula" AS material_formula,
+        "measurement.technique" AS measurement_technique,
+        "spectral_data.wavelength_unit" AS wavelength_unit,
+        "spectral_data.wavelength_grid_id" AS wavelength_grid_id,
+        "spectral_data.values" AS "values",
+        "source.library" AS source_library,
+        ${datasetCols}
+      FROM ${s} WHERE id IN (${inList})`;
+  }).join('\nUNION ALL\n');
 
   const result = await query(sql);
   const spectra: SpectrumFull[] = [];
@@ -44,6 +53,8 @@ export async function fetchSpectraByIds(ids: string[]): Promise<SpectrumFull[]> 
       wavelengths,
       values: arrowListToArray(row.values),
       source_library: row.source_library as string,
+      dataset_title: (row.dataset_title as string | null) ?? null,
+      dataset_license: (row.dataset_license as string | null) ?? null,
     });
   }
 

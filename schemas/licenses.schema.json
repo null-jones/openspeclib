@@ -1,5 +1,124 @@
 {
   "$defs": {
+    "DatasetLicenseEntry": {
+      "description": "Per-dataset license entry for aggregated sources.\n\nCaptures the license, DOI, and spectrum count for one contributing\ndataset within a source library. Used to break down the umbrella license\nof aggregated sources (notably ECOSIS) into the actual mix of licenses\nthat the contributing datasets carry.",
+      "properties": {
+        "id": {
+          "description": "Identifier of the contributing dataset within the source.",
+          "title": "Id",
+          "type": "string"
+        },
+        "title": {
+          "description": "Human-readable title of the contributing dataset.",
+          "title": "Title",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the dataset's landing page.",
+          "title": "Url"
+        },
+        "license": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "License governing this dataset.",
+          "title": "License"
+        },
+        "license_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "URL to the full license text, if available.",
+          "title": "License Url"
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Recommended citation for this dataset.",
+          "title": "Citation"
+        },
+        "citation_doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "DOI for the citation, if available.",
+          "title": "Citation Doi"
+        },
+        "authors": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Authors of the dataset.",
+          "title": "Authors"
+        },
+        "organization": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contributing organization or institution.",
+          "title": "Organization"
+        },
+        "spectrum_count": {
+          "description": "Number of spectra from this dataset.",
+          "minimum": 0,
+          "title": "Spectrum Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "spectrum_count"
+      ],
+      "title": "DatasetLicenseEntry",
+      "type": "object"
+    },
     "LicenseEntry": {
       "description": "Licensing and citation information for a single source library.",
       "properties": {
@@ -53,6 +172,22 @@
           "default": null,
           "description": "DOI for the citation, if available.",
           "title": "Citation Doi"
+        },
+        "datasets": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/DatasetLicenseEntry"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Per-dataset breakdown for aggregated sources (ECOSIS, OSSL), keyed by dataset id. ``None`` for monolithic sources.",
+          "title": "Datasets"
         }
       },
       "required": [

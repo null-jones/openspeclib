@@ -154,7 +154,9 @@ class TestEcosisLoader:
         r = records[0]
         assert r.id.startswith("ecosis:")
         assert r.source.library.value == "ecosis"
-        assert r.source.license == "EcoSIS Data Use Policy"
+        # The fixture ECOSIS package carries its own license, which the loader
+        # surfaces in place of the umbrella "EcoSIS Data Use Policy" fallback.
+        assert r.source.license == "Open Data Commons Open Database License (ODbL)"
         assert r.source.citation != ""
         assert r.source.url.startswith("https://ecosis.org/package/")
         assert r.spectral_data.wavelength_unit.value == "nm"
@@ -164,6 +166,31 @@ class TestEcosisLoader:
         assert r.material.category == MaterialCategory.VEGETATION
         assert "dataset_id" in r.additional_properties
         assert "dataset_title" in r.additional_properties
+
+    def test_dataset_metadata_populated(self):
+        loader = EcosisLoader()
+        records = list(loader.load(FIXTURE_DIR))
+
+        r = records[0]
+        ds = r.source.dataset
+        assert ds is not None
+        assert ds.id == "03e46f54-7d68-4a8c-896a-fcea87e9cf10"
+        assert ds.license == "Open Data Commons Open Database License (ODbL)"
+        assert ds.citation_doi == "10.21232/C22M27"
+        assert ds.description and "fresh leaf spectra" in ds.description
+
+    def test_measurement_context_populated(self):
+        loader = EcosisLoader()
+        records = list(loader.load(FIXTURE_DIR))
+
+        r = records[0]
+        assert r.measurement.light_source == "lamp"
+        assert r.measurement.venue == "greenhouse"
+        assert r.measurement.acquisition_method == "contact"
+        assert r.measurement.foreoptic == "leaf clip"
+        # The fixture has Processing Averaged=["yes"], Interpolated=["no"],
+        # Resampled=["no"], so only "averaged" is surfaced.
+        assert r.measurement.processing == ["averaged"]
 
     def test_fixture_provenance(self):
         loader = EcosisLoader()
