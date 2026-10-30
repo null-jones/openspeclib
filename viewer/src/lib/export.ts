@@ -1,7 +1,9 @@
 import JSZip from 'jszip';
 import type { DownsampledResult } from './downsampling';
-import type { SpectrumFull } from '../types/catalog';
-import { toMicrometersWithValues } from './wavelength-utils';
+import type { CollectionMeta, SpectrumFull } from './data/types';
+import { attributionLines, buildAttribution } from './data/attribution';
+import { isMissingValue, toMicrometersWithValues } from './wavelength-utils';
+import { OPENSPECLIB_VERSION } from '../constants/urls';
 
 export interface ExportSpectrum {
   spectrum: SpectrumFull;
@@ -10,140 +12,157 @@ export interface ExportSpectrum {
 
 export type ExportFormat = 'csv' | 'envi';
 
-export function exportLibrary(
-  items: ExportSpectrum[],
-  useDownsampled: boolean,
-  format: ExportFormat,
-): void {
-  if (format === 'csv') {
-    exportCSV(items, useDownsampled);
-  } else {
-    exportENVI(items, useDownsampled);
-  }
+const GENERATOR = `the OpenSpecLib viewer (release ${OPENSPECLIB_VERSION})`;
+
+/** Attribution text for the exported spectra (licences, citations). */
+export function exportAttribution(items: ExportSpectrum[], collections: Map<string, CollectionMeta>): string[] {
+  return attributionLines(buildAttribution(items.map((i) => i.spectrum), collections), GENERATOR);
 }
 
-/** Export as CSV. */
-function exportCSV(items: ExportSpectrum[], useDownsampled: boolean): void {
-  let csv: string;
+function csvCell(v: string): string {
+  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+}
 
-  if (useDownsampled && items.some((i) => i.downsampled)) {
-    const firstDs = items.find((i) => i.downsampled)!.downsampled!;
-    const header = ['name', ...firstDs.map((b) => `${b.bandName} (${b.centerWavelength} um)`)];
-    const rows = items
-      .filter((i) => i.downsampled)
-      .map((i) => {
-        const vals = i.downsampled!.map((b) =>
-          b.value !== null ? b.value.toFixed(6) : '',
-        );
-        return [i.spectrum.name, ...vals];
-      });
-    csv = [header.join(','), ...rows.map((r) => r.join(','))].join('\n');
-  } else {
-    const sections: string[] = [];
-    for (const item of items) {
-      const s = item.spectrum;
-      sections.push(`# ${s.name} (${s.material_name}, ${s.source_library})`);
-      sections.push('wavelength_um,value');
-      for (let i = 0; i < s.wavelengths.length; i++) {
-        sections.push(`${s.wavelengths[i]},${s.values[i]}`);
-      }
-      sections.push('');
-    }
-    csv = sections.join('\n');
-  }
+/** A float64 (wavelength) in full. */
+function num(v: number): string {
+  return Number.isFinite(v) ? String(v) : 'NaN';
+}
 
-  downloadBlob(csv, 'spectral_library.csv', 'text/csv');
+/** A float32 value: ~7 significant digits, so 0.1f prints as 0.1, not 0.10000000149011612. */
+function num32(v: number): string {
+  return Number.isFinite(v) ? String(Number(v.toPrecision(7))) : 'NaN';
+}
+
+/** One `#` comment line per line of text (citations may contain newlines). */
+function commentLines(text: string): string[] {
+  return text.split(/\r?\n/).map((l) => (l ? `# ${l}` : '#'));
 }
 
 /**
- * Export as ENVI spectral library (.sli + .hdr) in a zip.
- *
- * ENVI spectral library format:
- * - .sli: flat binary, float32, BSQ interleave (each spectrum is one "line")
- * - .hdr: ASCII header with metadata
- *
- * All spectra are resampled to a common wavelength grid.
- * When downsampled, the sensor bands become the grid.
+ * CSV: an attribution block of `#` comment lines, then one section per
+ * spectrum (or one table of sensor bands when downsampled). Wavelengths stay
+ * in each spectrum's native unit; NaN marks missing bands.
  */
-function exportENVI(items: ExportSpectrum[], useDownsampled: boolean): void {
+export function buildCsv(items: ExportSpectrum[], useDownsampled: boolean, attribution: string[]): string {
+  const out = attribution.flatMap(commentLines);
+  out.push('');
+  if (useDownsampled && items.some((i) => i.downsampled)) {
+    const firstDs = items.find((i) => i.downsampled)!.downsampled!;
+    const missing = notDownsampled(items);
+    if (missing.length) {
+      out.push(...commentLines(`Not downsampled (no usable overlap with the sensor's bands; written as NaN): ${missing.join(', ')}`), '');
+    }
+    out.push(['id', 'name', 'quantity', 'license', ...firstDs.map((b) => `${b.bandName} (${b.centerWavelength} um)`)].map(csvCell).join(','));
+    for (const i of items) {
+      const s = i.spectrum;
+      const bandValues = i.downsampled
+        ? i.downsampled.map((b) => (b.value !== null ? num32(b.value) : 'NaN'))
+        : firstDs.map(() => 'NaN');
+      out.push([s.id, s.name, s.quantity, s.license, ...bandValues].map(csvCell).join(','));
+    }
+    return out.join('\n') + '\n';
+  }
+  for (const { spectrum: s } of items) {
+    out.push(...commentLines(`id: ${s.id}`));
+    out.push(...commentLines(`name: ${s.name}; material: ${s.material_name}; collection: ${s.collection}`));
+    out.push(...commentLines(`quantity: ${s.quantity}; geometry: ${s.geometry}; license: ${s.license}${s.dataset_id ? `; dataset: ${s.dataset_id}` : ''}`));
+    out.push(`wavelength_${s.wavelength_unit.replace('-', '')},${s.quantity}`);
+    for (let k = 0; k < s.wavelengths.length; k++) out.push(`${num(s.wavelengths[k])},${num32(s.values[k])}`);
+    out.push('');
+  }
+  return out.join('\n');
+}
+
+/** Ids of spectra a downsampled export holds without downsampled values. */
+function notDownsampled(items: ExportSpectrum[]): string[] {
+  return items.filter((i) => !i.downsampled).map((i) => i.spectrum.id);
+}
+
+/** ENVI no-data value, declared in the header's `data ignore value`. */
+export const NODATA = -9999;
+
+
+function sameGrid(a: number[], b: number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > 1e-9) return false;
+  return true;
+}
+
+/** Linear interpolation; NODATA outside the axis or next to a missing value. */
+function linearInterp(xSrc: number[], ySrc: number[], x: number): number {
+  const n = xSrc.length;
+  if (n === 0 || x < xSrc[0] || x > xSrc[n - 1]) return NODATA;
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (xSrc[mid] <= x) lo = mid;
+    else hi = mid;
+  }
+  const [y0, y1] = [ySrc[lo], ySrc[hi]];
+  if (isMissingValue(y0) || isMissingValue(y1)) return NODATA;
+  const span = xSrc[hi] - xSrc[lo];
+  return span === 0 ? y0 : y0 + ((x - xSrc[lo]) / span) * (y1 - y0);
+}
+
+/** ENVI header values cannot hold commas or braces inside a list. */
+function enviName(s: string): string {
+  return s.replace(/[,{}]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+export interface EnviFiles {
+  sli: ArrayBuffer;
+  hdr: string;
+  attribution: string;
+}
+
+/**
+ * ENVI spectral library: every spectrum on one wavelength grid in µm (the
+ * first spectrum's, or the sensor bands when downsampled), float32, BSQ.
+ */
+export function buildEnvi(items: ExportSpectrum[], useDownsampled: boolean, attribution: string[]): EnviFiles {
   let wavelengths: number[];
-  let spectraNames: string[];
-  let spectraData: Float32Array[];
+  const names: string[] = [];
+  const data: Float32Array[] = [];
+  const used: SpectrumFull[] = [];
 
   if (useDownsampled && items.some((i) => i.downsampled)) {
-    // Use downsampled band wavelengths as the grid
     const firstDs = items.find((i) => i.downsampled)!.downsampled!;
     wavelengths = firstDs.map((b) => b.centerWavelength);
-    spectraNames = [];
-    spectraData = [];
-
     for (const item of items) {
-      if (!item.downsampled) continue;
-      spectraNames.push(item.spectrum.name);
-      const vals = new Float32Array(wavelengths.length);
-      for (let i = 0; i < item.downsampled.length; i++) {
-        vals[i] = item.downsampled[i].value ?? -9999;
-      }
-      spectraData.push(vals);
+      used.push(item.spectrum);
+      names.push(item.spectrum.name);
+      data.push(
+        item.downsampled ? Float32Array.from(item.downsampled, (b) => b.value ?? NODATA) : new Float32Array(wavelengths.length).fill(NODATA),
+      );
     }
   } else {
-    // Find the spectrum with most points and use its wavelengths
-    // For simplicity, use a common grid: the first spectrum's wavelengths
-    // (ENVI requires all spectra on the same grid)
     const first = items[0].spectrum;
-    const { wavelengths: wl } = toMicrometersWithValues(
-      first.wavelengths,
-      first.values,
-      first.wavelength_unit,
-    );
-    wavelengths = wl;
-    spectraNames = [];
-    spectraData = [];
-
-    for (const item of items) {
-      const s = item.spectrum;
-      const { wavelengths: srcWl, values: srcVal } = toMicrometersWithValues(
-        s.wavelengths,
-        s.values,
-        s.wavelength_unit,
+    wavelengths = toMicrometersWithValues(first.wavelengths, first.values, first.wavelength_unit).wavelengths;
+    for (const { spectrum: s } of items) {
+      const { wavelengths: wl, values } = toMicrometersWithValues(s.wavelengths, s.values, s.wavelength_unit);
+      used.push(s);
+      names.push(s.name);
+      // Same length is not the same grid: compare the values.
+      data.push(
+        sameGrid(wl, wavelengths)
+          ? Float32Array.from(values, (v) => (isMissingValue(v) ? NODATA : v))
+          : Float32Array.from(wavelengths, (x) => linearInterp(wl, values, x)),
       );
-      spectraNames.push(s.name);
-
-      // Interpolate onto the common grid if needed
-      if (srcWl.length === wavelengths.length) {
-        // Filter sentinel values
-        const vals = new Float32Array(srcVal.length);
-        for (let i = 0; i < srcVal.length; i++) {
-          vals[i] = srcVal[i] < -1e10 || srcVal[i] > 1e10 ? -9999 : srcVal[i];
-        }
-        spectraData.push(vals);
-      } else {
-        // Linear interpolation to match the common grid
-        const vals = new Float32Array(wavelengths.length);
-        for (let i = 0; i < wavelengths.length; i++) {
-          vals[i] = linearInterp(srcWl, srcVal, wavelengths[i]);
-        }
-        spectraData.push(vals);
-      }
     }
   }
 
-  const samples = wavelengths.length; // number of bands
-  const lines = spectraData.length;   // number of spectra
-
-  // Build binary .sli (BSQ: each spectrum is one "line")
+  const samples = wavelengths.length;
+  const lines = data.length;
   const sli = new ArrayBuffer(lines * samples * 4);
-  const sliView = new DataView(sli);
-  for (let line = 0; line < lines; line++) {
-    for (let s = 0; s < samples; s++) {
-      sliView.setFloat32((line * samples + s) * 4, spectraData[line][s], true); // little-endian
-    }
+  const view = new DataView(sli);
+  for (let l = 0; l < lines; l++) {
+    for (let k = 0; k < samples; k++) view.setFloat32((l * samples + k) * 4, data[l][k], true);
   }
-
-  // Build .hdr
+  const quantities = [...new Set(used.map((s) => s.quantity))].join(', ');
   const hdr = [
     'ENVI',
-    'description = {OpenSpecLib Spectral Library Export}',
+    `description = {OpenSpecLib viewer export. Values: ${quantities}. Licences and citations: attribution.txt}`,
     `samples = ${samples}`,
     `lines = ${lines}`,
     'bands = 1',
@@ -152,52 +171,43 @@ function exportENVI(items: ExportSpectrum[], useDownsampled: boolean): void {
     'data type = 4',
     'interleave = bsq',
     'byte order = 0',
-    `wavelength units = Micrometers`,
+    `data ignore value = ${NODATA}`,
+    'wavelength units = Micrometers',
     `wavelength = {${wavelengths.map((w) => w.toFixed(6)).join(', ')}}`,
-    `spectra names = {${spectraNames.join(', ')}}`,
+    `spectra names = {${names.map(enviName).join(', ')}}`,
     '',
   ].join('\n');
 
-  // Zip both files
+  const table = ['', 'Spectra (line, id, quantity, geometry, licence):'];
+  used.forEach((s, i) => table.push(`${i + 1}\t${s.id}\t${s.quantity}\t${s.geometry}\t${s.license}`));
+  const missing = useDownsampled ? notDownsampled(items) : [];
+  if (missing.length) {
+    table.push('', `Not downsampled (no usable overlap with the sensor's bands; written as ${NODATA}): ${missing.join(', ')}`);
+  }
+  return { sli, hdr, attribution: [...attribution, ...table, ''].join('\n') };
+}
+
+export function exportLibrary(
+  items: ExportSpectrum[],
+  useDownsampled: boolean,
+  format: ExportFormat,
+  collections: Map<string, CollectionMeta>,
+): void {
+  if (items.length === 0) return;
+  const attribution = exportAttribution(items, collections);
+  if (format === 'csv') {
+    download(new Blob([buildCsv(items, useDownsampled, attribution)], { type: 'text/csv' }), 'spectral_library.csv');
+    return;
+  }
+  const files = buildEnvi(items, useDownsampled, attribution);
   const zip = new JSZip();
-  zip.file('spectral_library.sli', sli);
-  zip.file('spectral_library.hdr', hdr);
-  zip.generateAsync({ type: 'blob' }).then((blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'spectral_library_envi.zip';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
+  zip.file('spectral_library.sli', files.sli);
+  zip.file('spectral_library.hdr', files.hdr);
+  zip.file('attribution.txt', files.attribution);
+  void zip.generateAsync({ type: 'blob' }).then((blob) => download(blob, 'spectral_library_envi.zip'));
 }
 
-/** Simple linear interpolation. Returns -9999 for out-of-range. */
-function linearInterp(xSrc: number[], ySrc: number[], xTarget: number): number {
-  if (xTarget <= xSrc[0]) return ySrc[0] < -1e10 ? -9999 : ySrc[0];
-  if (xTarget >= xSrc[xSrc.length - 1]) {
-    const last = ySrc[ySrc.length - 1];
-    return last < -1e10 ? -9999 : last;
-  }
-  // Binary search for the bracket
-  let lo = 0;
-  let hi = xSrc.length - 1;
-  while (hi - lo > 1) {
-    const mid = (lo + hi) >> 1;
-    if (xSrc[mid] <= xTarget) lo = mid;
-    else hi = mid;
-  }
-  const y0 = ySrc[lo];
-  const y1 = ySrc[hi];
-  if (y0 < -1e10 || y1 < -1e10) return -9999;
-  const t = (xTarget - xSrc[lo]) / (xSrc[hi] - xSrc[lo]);
-  return y0 + t * (y1 - y0);
-}
-
-function downloadBlob(content: string, filename: string, mimeType: string): void {
-  const blob = new Blob([content], { type: mimeType });
+function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -205,5 +215,5 @@ function downloadBlob(content: string, filename: string, mimeType: string): void
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

@@ -1,30 +1,45 @@
-"""Pydantic models defining the OpenSpecLib unified data structure.
+"""Pydantic models for OpenSpecLib Format v1 records and collection metadata.
 
-These models serve as the single source of truth for the spectral library schema.
-JSON Schema files in schemas/ are generated from these models.
+Loaders build one nested :class:`SpectrumRecord` per spectrum; the storage
+layer (:mod:`openspeclib.storage`) flattens it to the snake_case columns of a
+Format v1 collection file (``docs/spec/format-v1.md``). Collection-level
+provenance and licensing live in :class:`CollectionInfo` and
+:class:`DatasetInfo`, which become the ``openspeclib`` footer of that file.
+
+Derived values are not stored on the record: the wavelength extent in
+nanometres, the point count and band-validity counts all follow from the
+arrays and are computed when the file is written or read.
 """
 
 import datetime as _dt
+import re
 from enum import Enum
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+import numpy as np
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# Version of the OpenSpecLib Format specification this package writes.
+FORMAT_VERSION = "1.0.0"
 
-class SourceLibrary(str, Enum):
-    """Supported source spectral libraries."""
-
-    USGS_SPLIB07 = "usgs_splib07"
-    ECOSTRESS = "ecostress"
-    RELAB = "relab"
-    ASU_TES = "asu_tes"
-    BISHOP = "bishop"
-    ECOSIS = "ecosis"
-    OSSL = "ossl"
+# Collection id grammar (rule F5).
+COLLECTION_ID_PATTERN = r"^[a-z0-9][a-z0-9_]{1,62}$"
+# Characters allowed in the local part of a spectrum id, and its length limit (F5).
+LOCAL_ID_ALLOWED = r"A-Za-z0-9._~-"
+LOCAL_ID_MAX_LENGTH = 200
+_LOCAL_ID_RE = re.compile(rf"^[{LOCAL_ID_ALLOWED}]{{1,{LOCAL_ID_MAX_LENGTH}}}$")
+_COLLECTION_ID_RE = re.compile(COLLECTION_ID_PATTERN)
+# A DOI as the footer schema requires it (no ``doi:`` or URL prefix).
+DOI_PATTERN = r"^10\.[0-9]{4,}/\S+$"
+# Keys of ``collection.license_refs`` (SPDX idstring: letters, digits, ``.``, ``-``).
+LICENSE_REF_PATTERN = r"^LicenseRef-[A-Za-z0-9.-]+$"
+_LICENSE_REF_RE = re.compile(LICENSE_REF_PATTERN)
+# Finite values above this magnitude are fill/sentinel values (rule F9).
+SENTINEL_MAGNITUDE = 1e10
 
 
 class MaterialCategory(str, Enum):
-    """Controlled vocabulary for material classification."""
+    """Vocabulary ``material_category``: top-level material class."""
 
     MINERAL = "mineral"
     ROCK = "rock"
@@ -41,88 +56,101 @@ class MaterialCategory(str, Enum):
     OTHER = "other"
 
 
-class MeasurementTechnique(str, Enum):
-    """Type of spectral measurement."""
+class Quantity(str, Enum):
+    """Vocabulary ``quantity``: the physical quantity of ``values``.
+
+    Absorbance is decadic, A = log10(1/x).
+    """
 
     REFLECTANCE = "reflectance"
+    TRANSMITTANCE = "transmittance"
     EMISSIVITY = "emissivity"
     ABSORBANCE = "absorbance"
-    TRANSMITTANCE = "transmittance"
+
+
+class Geometry(str, Enum):
+    """Vocabulary ``geometry``: illumination/viewing geometry (Schaepman-Strub et al. 2006)."""
+
+    BIDIRECTIONAL = "bidirectional"
+    BICONICAL = "biconical"
+    DIRECTIONAL_HEMISPHERICAL = "directional_hemispherical"
+    HEMISPHERICAL_DIRECTIONAL = "hemispherical_directional"
+    HEMISPHERICAL_CONICAL = "hemispherical_conical"
+    BIHEMISPHERICAL = "bihemispherical"
+    DIRECTIONAL = "directional"
+    UNKNOWN = "unknown"
 
 
 class WavelengthUnit(str, Enum):
-    """Wavelength or wavenumber units."""
+    """Vocabulary ``wavelength_unit``: unit of the native spectral axis."""
 
     MICROMETERS = "um"
     NANOMETERS = "nm"
     WAVENUMBERS = "cm-1"
 
 
-# ---------------------------------------------------------------------------
-# Sub-models
-# ---------------------------------------------------------------------------
+class Inclusion(str, Enum):
+    """Vocabulary ``inclusion``: whether a collection or dataset is complete."""
+
+    COMPLETE = "complete"
+    SUBSET = "subset"
 
 
-class Dataset(BaseModel):
-    """Nested dataset within an aggregated source library.
+def is_valid_collection_id(value: str) -> bool:
+    """Check a collection id against the F5 grammar.
 
-    ECOSIS bundles many researcher-contributed packages and OSSL aggregates
-    contributing soil libraries; each carries its own title, license, DOI,
-    and authorship. ``Dataset`` captures that per-package metadata so it
-    survives ingest. Left ``None`` for monolithic sources (USGS, ECOSTRESS,
-    RELAB, ASU TES, Bishop).
+    Args:
+        value: Candidate collection id.
+
+    Returns:
+        Whether ``value`` matches ``^[a-z0-9][a-z0-9_]{1,62}$``.
     """
-
-    id: str = Field(description="Identifier of the contributing dataset within the source.")
-    title: str = Field(description="Human-readable title of the contributing dataset.")
-    description: Optional[str] = Field(
-        default=None, description="Free-text description of the dataset."
-    )
-    url: Optional[str] = Field(default=None, description="URL to the dataset's landing page.")
-    license: Optional[str] = Field(
-        default=None,
-        description="License governing this specific dataset (may differ per dataset).",
-    )
-    license_url: Optional[str] = Field(
-        default=None, description="URL to the full license text, if available."
-    )
-    citation: Optional[str] = Field(
-        default=None, description="Recommended citation for this dataset."
-    )
-    citation_doi: Optional[str] = Field(
-        default=None, description="DOI for the citation, if available."
-    )
-    authors: Optional[str] = Field(
-        default=None, description="Authors of the dataset (semicolon-delimited)."
-    )
-    organization: Optional[str] = Field(
-        default=None, description="Contributing organization or institution."
-    )
+    return bool(_COLLECTION_ID_RE.match(value))
 
 
-class Source(BaseModel):
-    """Provenance information linking a spectrum to its origin library."""
+def license_refs_used(expression: str) -> set[str]:
+    """Validate a licence expression (rule F11) and return its ``LicenseRef-`` ids.
 
-    library: SourceLibrary = Field(description="Source spectral library identifier.")
-    library_version: str = Field(description="Version of the source library.")
-    original_id: str = Field(description="Identifier used in the source library.")
-    filename: Optional[str] = Field(
-        default=None, description="Original filename in the source archive."
-    )
-    url: str = Field(description="DOI or URL for the source library.")
-    license: str = Field(description="License governing the source data.")
-    citation: str = Field(description="Recommended citation string.")
-    dataset: Optional[Dataset] = Field(
-        default=None,
-        description=(
-            "Contributing dataset metadata for aggregated sources (ECOSIS packages, "
-            "OSSL contributors). ``None`` for monolithic sources."
-        ),
-    )
+    Args:
+        expression: An SPDX license expression, a ``LicenseRef-`` id or
+            ``NOASSERTION`` (on its own).
+
+    Returns:
+        The ``LicenseRef-`` identifiers the expression uses.
+
+    Raises:
+        ValueError: If the expression is not valid (e.g. lower-case
+            operators, free text such as ``Creative Commons Attribution``,
+            ``NOASSERTION`` combined with other terms, or a ``LicenseRef-``
+            with characters other than letters, digits, ``.`` and ``-``).
+    """
+    from openspeclib.conformance import check_spdx_expression
+
+    error, refs = check_spdx_expression(expression)
+    if error is not None:
+        raise ValueError(f"licence {expression!r} is not a valid SPDX expression: {error}")
+    return refs
+
+
+def is_valid_local_id(value: str) -> bool:
+    """Check the local part of a spectrum id against the F5 grammar.
+
+    Args:
+        value: Candidate local id (the part after ``{collection}:``).
+
+    Returns:
+        Whether ``value`` is 1–200 characters from ``[A-Za-z0-9._~-]``.
+    """
+    return bool(_LOCAL_ID_RE.match(value))
+
+
+# ---------------------------------------------------------------------------
+# Per-record sub-models
+# ---------------------------------------------------------------------------
 
 
 class Material(BaseModel):
-    """Classification of the material whose spectrum was measured."""
+    """What was measured (core ``material_*`` columns plus the ``material`` extension)."""
 
     name: str = Field(description="Material name (e.g. Olivine, Quartz, Oak leaf).")
     category: MaterialCategory = Field(description="Top-level material category.")
@@ -135,7 +163,7 @@ class Material(BaseModel):
 
 
 class Sample(BaseModel):
-    """Information about the physical sample that was measured."""
+    """The physical sample (``sample`` extension)."""
 
     id: Optional[str] = Field(default=None, description="Sample identifier from the source.")
     description: Optional[str] = Field(default=None, description="Free-text sample description.")
@@ -157,8 +185,15 @@ class Sample(BaseModel):
 
 
 class Measurement(BaseModel):
-    """Instrument and conditions under which the spectrum was acquired."""
+    """What was measured and how (core ``quantity``/``geometry`` plus ``measurement_*``)."""
 
+    quantity: Quantity = Field(description="Physical quantity of the values.")
+    geometry: Geometry = Field(
+        description=(
+            "Illumination/viewing geometry. ``unknown`` when the source does not state it; "
+            "never guessed."
+        )
+    )
     instrument: Optional[str] = Field(default=None, description="Instrument name and model.")
     instrument_type: Optional[str] = Field(
         default=None,
@@ -167,32 +202,21 @@ class Measurement(BaseModel):
     laboratory: Optional[str] = Field(
         default=None, description="Laboratory or facility where the measurement was performed."
     )
-    technique: MeasurementTechnique = Field(
-        description="Measurement technique (reflectance, emissivity, absorbance, transmittance)."
-    )
-    geometry: Optional[str] = Field(
-        default=None,
-        description="Measurement geometry (e.g. biconical, hemispherical).",
-    )
     date: Optional[_dt.date] = Field(
         default=None, description="Date the measurement was acquired (ISO 8601)."
     )
     processing: list[str] = Field(
         default_factory=list,
         description=(
-            "Processing flags applied to the values, in order of relevance to the "
-            "consumer (e.g. ``averaged``, ``interpolated``, ``resampled``, "
-            "``continuum_removed``, ``smoothed``). Free-text rather than a closed "
-            "enum so loaders can pass through source-specific labels."
+            "Processing flags applied to the values, in order (e.g. ``averaged``, "
+            "``interpolated``, ``resampled``, ``simulated``, ``absorbance_from_reflectance``)."
         ),
     )
     light_source: Optional[str] = Field(
-        default=None,
-        description="Illumination source (e.g. sun, lamp, contact_probe).",
+        default=None, description="Illumination source (e.g. sun, lamp)."
     )
     venue: Optional[str] = Field(
-        default=None,
-        description="Measurement venue (e.g. field, greenhouse, laboratory).",
+        default=None, description="Measurement venue (e.g. field, greenhouse, laboratory)."
     )
     acquisition_method: Optional[str] = Field(
         default=None,
@@ -200,257 +224,354 @@ class Measurement(BaseModel):
     )
     foreoptic: Optional[str] = Field(
         default=None,
-        description="Foreoptic used for the measurement (e.g. leaf clip, bare fibre, pistol grip).",
+        description="Foreoptic used for the measurement (e.g. leaf clip, bare fibre).",
+    )
+    reference: Optional[str] = Field(
+        default=None,
+        description="Reference standard the values are relative to (e.g. spectralon, absolute).",
     )
 
 
 class SpectralData(BaseModel):
-    """Spectral measurement data and associated axis information."""
+    """The spectral axis and the arrays measured along it."""
 
-    type: MeasurementTechnique = Field(
-        description="Type of spectral values (reflectance, emissivity, absorbance, transmittance)."
-    )
+    # Missing bands are NaN in ``values``. Pydantic's default JSON output
+    # writes NaN as null, which then fails to parse back as a float, so the
+    # ingest -> combine JSONL round trip would reject every gappy spectrum.
+    # Emit the NaN constant instead (read back by pydantic and Python's json).
+    model_config = ConfigDict(ser_json_inf_nan="constants")
+
     wavelength_unit: WavelengthUnit = Field(
-        description="Unit of the wavelength axis (um, nm, or cm-1)."
+        description="Unit of the wavelength axis (um, nm, or cm-1), native to the source."
     )
-    wavelength_min: float = Field(description="Minimum value on the wavelength axis.")
-    wavelength_max: float = Field(description="Maximum value on the wavelength axis.")
-    num_points: int = Field(ge=1, description="Number of spectral data points.")
     wavelengths: list[float] = Field(description="Wavelength (or wavenumber) axis values.")
-    values: list[float] = Field(description="Spectral measurement values.")
-    bandpass: Optional[list[float]] = Field(
+    values: list[float] = Field(description="Spectral values; NaN marks a missing band.")
+    bandpass_fwhm: Optional[list[float]] = Field(
         default=None,
-        description="Bandpass (FWHM) at each wavelength position, if available.",
+        description="Full width at half maximum per band, in ``wavelength_unit``.",
     )
-    reflectance_scale: Literal["unit", "percent"] = Field(
-        default="unit",
-        description=(
-            "Scale of stored reflectance/emissivity/absorbance values. "
-            "'unit' = 0–1, 'percent' = 0–100. Loaders normalise to 'unit' on "
-            "ingest so all spectra in a combined library share a single axis; "
-            "the original source scale (when known and non-unit) is preserved "
-            "in ``additional_properties.source_reflectance_scale``."
-        ),
+    values_stddev: Optional[list[float]] = Field(
+        default=None, description="Standard deviation of each value."
     )
 
+    @model_validator(mode="after")
+    def _check_lengths(self) -> "SpectralData":
+        """Enforce the per-row array rules F8, F9 and F13 of Format v1.
 
-class SpectralDataSummary(BaseModel):
-    """Spectral data metadata for catalog entries (no raw arrays)."""
+        Returns:
+            The validated model.
 
-    type: MeasurementTechnique = Field(description="Type of spectral values.")
-    wavelength_unit: WavelengthUnit = Field(description="Unit of the wavelength axis.")
-    wavelength_min: float = Field(description="Minimum value on the wavelength axis.")
-    wavelength_max: float = Field(description="Maximum value on the wavelength axis.")
-    num_points: int = Field(ge=1, description="Number of spectral data points.")
+        Raises:
+            ValueError: If the axis has fewer than 2 points, is not finite and
+                positive, or is not strictly monotonic; if an array differs in
+                length from the axis; if ``values`` holds an infinity or a
+                sentinel-sized number (``|v| > 1e10``, which includes anything
+                that would overflow float32); or if ``bandpass_fwhm`` /
+                ``values_stddev`` hold a negative or infinite number.
+        """
+        n = len(self.wavelengths)
+        if n < 2:
+            raise ValueError(f"wavelengths has {n} point(s); at least 2 are required")
+        axis = np.asarray(self.wavelengths, dtype=np.float64)
+        if not (np.all(np.isfinite(axis)) and np.all(axis > 0)):
+            raise ValueError("wavelengths must all be finite and greater than 0")
+        steps = np.diff(axis)
+        if not (np.all(steps > 0) or np.all(steps < 0)):
+            raise ValueError(
+                "wavelengths must be strictly increasing or strictly decreasing "
+                "(reorder or de-duplicate bands, see loaders.base.sort_by_wavelength)"
+            )
+        if len(self.values) != n:
+            raise ValueError(f"values has {len(self.values)} points, wavelengths {n}")
+        values = np.asarray(self.values, dtype=np.float64)
+        bad = ~np.isnan(values) & ~(np.abs(values) <= SENTINEL_MAGNITUDE)
+        if np.any(bad):
+            first = int(np.argmax(bad))
+            raise ValueError(
+                f"values[{first}] = {values[first]!r}: values must be finite with magnitude "
+                f"<= {SENTINEL_MAGNITUDE:g}, or NaN for a missing band"
+            )
+        for name in ("bandpass_fwhm", "values_stddev"):
+            array = getattr(self, name)
+            if array is None:
+                continue
+            if len(array) != n:
+                raise ValueError(f"{name} has {len(array)} points, wavelengths {n}")
+            data = np.asarray(array, dtype=np.float64)
+            if np.any(~np.isnan(data) & ~(np.isfinite(data) & (data >= 0))):
+                raise ValueError(f"{name} must be finite and non-negative, or NaN")
+            # Stored as float32: anything larger would become +inf (F13).
+            if np.any(data > np.finfo(np.float32).max):
+                raise ValueError(f"{name} values must fit in float32 (<= 3.4028235e38)")
+        return self
 
 
 class Quality(BaseModel):
-    """Data quality indicators for a spectrum."""
+    """Free-text quality information (``quality`` extension)."""
 
-    has_bad_bands: bool = Field(
-        default=False, description="Whether any bad or invalid bands are present."
-    )
-    bad_band_count: int = Field(default=0, ge=0, description="Number of invalid data points.")
-    coverage_fraction: float = Field(
-        default=1.0,
-        ge=0.0,
-        le=1.0,
-        description="Fraction of data points that are valid (0.0–1.0).",
-    )
     notes: Optional[str] = Field(default=None, description="Additional quality notes.")
 
 
 # ---------------------------------------------------------------------------
-# Top-level record models
+# Spectrum record
 # ---------------------------------------------------------------------------
 
 
 class SpectrumRecord(BaseModel):
-    """A single spectrum with full spectral data — used in library chunk files."""
+    """One spectrum, as produced by a loader and stored as one collection-file row."""
 
-    id: str = Field(description="Globally unique identifier ({source_library}:{original_id}).")
-    name: str = Field(description="Human-readable display name.")
-    source: Source = Field(description="Provenance information.")
+    id: str = Field(description="Spectrum id ``{collection}:{local_id}`` (rule F5).")
+    collection: str = Field(description="Collection id; equals the footer ``collection.id``.")
+    original_id: str = Field(
+        min_length=1, description="The identifier the upstream source uses, unchanged."
+    )
+    name: str = Field(description="Human-readable display label.")
+    license: str = Field(
+        min_length=1,
+        description="SPDX expression, ``LicenseRef-`` identifier or ``NOASSERTION``.",
+    )
+    dataset_id: Optional[str] = Field(
+        default=None,
+        description="Key of the contributing dataset (aggregated collections only).",
+    )
     material: Material = Field(description="Material classification.")
-    sample: Sample = Field(description="Sample information.")
+    sample: Sample = Field(default_factory=Sample, description="Sample information.")
     measurement: Measurement = Field(description="Measurement conditions.")
-    spectral_data: SpectralData = Field(description="Spectral measurement data.")
-    additional_properties: dict[str, Any] = Field(
+    spectral_data: SpectralData = Field(description="Spectral axis and values.")
+    quality: Quality = Field(default_factory=Quality, description="Quality notes.")
+    extra: dict[str, Any] = Field(
         default_factory=dict,
-        description="Source-specific metadata not captured by the standard fields.",
+        description="Producer-specific metadata not captured by the standard fields.",
     )
-    quality: Quality = Field(default_factory=Quality, description="Data quality indicators.")
 
-
-class CatalogRecord(BaseModel):
-    """A spectrum's metadata for the catalog index — no raw spectral arrays."""
-
-    id: str = Field(description="Globally unique identifier.")
-    name: str = Field(description="Human-readable display name.")
-    chunk_file: str = Field(
-        description="Relative path to the library chunk file containing full spectral data."
-    )
-    source: Source = Field(description="Provenance information.")
-    material: Material = Field(description="Material classification.")
-    sample: Sample = Field(description="Sample information.")
-    measurement: Measurement = Field(description="Measurement conditions.")
-    spectral_data: SpectralDataSummary = Field(description="Spectral data summary (no arrays).")
-    additional_properties: dict[str, Any] = Field(
-        default_factory=dict,
-        description="Source-specific metadata.",
-    )
-    quality: Quality = Field(default_factory=Quality, description="Data quality indicators.")
-
+    @field_validator("original_id")
     @classmethod
-    def from_spectrum(cls, record: SpectrumRecord, chunk_file: str) -> "CatalogRecord":
-        """Create a catalog entry from a full spectrum record.
+    def _check_original_id(cls, value: str) -> str:
+        """Reject a whitespace-only upstream id (rule F2).
 
         Args:
-            record: The full spectrum record to summarise.
-            chunk_file: Relative path to the chunk file containing this spectrum.
+            value: The upstream id.
 
         Returns:
-            A ``CatalogRecord`` with spectral arrays omitted.
+            The unchanged id.
+
+        Raises:
+            ValueError: If the id is empty or whitespace only.
         """
-        return cls(
-            id=record.id,
-            name=record.name,
-            chunk_file=chunk_file,
-            source=record.source,
-            material=record.material,
-            sample=record.sample,
-            measurement=record.measurement,
-            spectral_data=SpectralDataSummary(
-                type=record.spectral_data.type,
-                wavelength_unit=record.spectral_data.wavelength_unit,
-                wavelength_min=record.spectral_data.wavelength_min,
-                wavelength_max=record.spectral_data.wavelength_max,
-                num_points=record.spectral_data.num_points,
-            ),
-            additional_properties=record.additional_properties,
-            quality=record.quality,
-        )
+        if not value.strip():
+            raise ValueError("original_id must not be empty or whitespace only")
+        return value
+
+    @field_validator("license")
+    @classmethod
+    def _check_license(cls, value: str) -> str:
+        """Validate the licence expression syntax (rule F11).
+
+        Args:
+            value: The licence expression.
+
+        Returns:
+            The unchanged expression.
+        """
+        license_refs_used(value)
+        return value
+
+    @field_validator("collection")
+    @classmethod
+    def _check_collection(cls, value: str) -> str:
+        """Validate the collection id grammar.
+
+        Args:
+            value: The collection id.
+
+        Returns:
+            The unchanged collection id.
+
+        Raises:
+            ValueError: If the id does not match the F5 grammar.
+        """
+        if not is_valid_collection_id(value):
+            raise ValueError(f"collection id {value!r} does not match {COLLECTION_ID_PATTERN}")
+        return value
+
+    @model_validator(mode="after")
+    def _check_id(self) -> "SpectrumRecord":
+        """Validate that ``id`` is ``{collection}:{local_id}`` with a legal local id.
+
+        Returns:
+            The validated record.
+
+        Raises:
+            ValueError: If the id does not follow rule F5.
+        """
+        prefix = f"{self.collection}:"
+        if not self.id.startswith(prefix) or not is_valid_local_id(self.id[len(prefix) :]):
+            raise ValueError(
+                f"id {self.id!r} must be '{prefix}' followed by 1-{LOCAL_ID_MAX_LENGTH} "
+                f"characters from [{LOCAL_ID_ALLOWED}]"
+            )
+        return self
 
 
 # ---------------------------------------------------------------------------
-# File-level models
+# Collection metadata (the ``openspeclib`` footer)
 # ---------------------------------------------------------------------------
 
 
-class SourceInfo(BaseModel):
-    """Metadata about a source library included in the catalog."""
+class LicenseRef(BaseModel):
+    """Definition of a ``LicenseRef-`` identifier (footer ``collection.license_refs``)."""
 
-    name: str = Field(description="Full name of the source library.")
-    version: str = Field(description="Version of the source library.")
-    url: str = Field(description="DOI or URL for the source library.")
-    license: str = Field(description="License governing the source data.")
-    license_url: Optional[str] = Field(
-        default=None, description="URL to the full license text, if available."
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, description="Human-readable licence name.")
+    text: Optional[str] = Field(default=None, description="Licence or terms text.")
+    url: Optional[str] = Field(default=None, description="URL of the licence or terms.")
+
+
+class CollectionInfo(BaseModel):
+    """The footer ``collection`` object: identity, provenance and licence of a collection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(pattern=COLLECTION_ID_PATTERN, description="Collection id.")
+    title: str = Field(min_length=1, description="Collection title.")
+    description: Optional[str] = Field(default=None, description="Free-text description.")
+    version: Optional[str] = Field(default=None, description="Version of the source collection.")
+    url: Optional[str] = Field(default=None, description="Landing page or DOI URL.")
+    doi: Optional[str] = Field(
+        default=None, pattern=DOI_PATTERN, description="DOI of the collection (bare, 10.x/...)."
     )
-    citation: str = Field(description="Recommended citation string.")
-    citation_doi: Optional[str] = Field(
-        default=None, description="DOI for the citation, if available."
+    publisher: Optional[str] = Field(default=None, description="Publishing organisation.")
+    license: str = Field(
+        min_length=1,
+        description="SPDX expression, ``LicenseRef-`` identifier or ``NOASSERTION``.",
     )
-    spectrum_count: int = Field(ge=0, description="Number of spectra from this source.")
-
-
-class CatalogStatistics(BaseModel):
-    """Aggregate statistics for the full library."""
-
-    total_spectra: int = Field(ge=0, description="Total number of spectra in the library.")
-    categories: dict[str, int] = Field(
+    license_note: Optional[str] = Field(default=None, description="Licence clarification.")
+    license_refs: dict[str, LicenseRef] = Field(
         default_factory=dict,
-        description="Spectrum count per material category.",
+        description="Definitions of every ``LicenseRef-`` identifier used in the file.",
     )
-
-
-class CatalogFile(BaseModel):
-    """Top-level structure of the catalog.json file."""
-
-    openspeclib_version: str = Field(description="Version of the OpenSpecLib schema.")
-    generated_at: _dt.datetime = Field(description="Timestamp when the catalog was generated.")
-    sources: dict[str, SourceInfo] = Field(description="Metadata for each source library included.")
-    statistics: CatalogStatistics = Field(description="Aggregate library statistics.")
-    spectra: list[CatalogRecord] = Field(description="Catalog entries for all spectra.")
-
-
-class LibraryChunkFile(BaseModel):
-    """In-memory representation of a source library Parquet file (spectra/{source}.parquet)."""
-
-    openspeclib_version: str = Field(description="Version of the OpenSpecLib schema.")
-    source: str = Field(description="Source library identifier for this file.")
-    spectrum_count: int = Field(ge=0, description="Number of spectra in this file.")
-    spectra: list[SpectrumRecord] = Field(description="Full spectrum records.")
-
-
-class DatasetLicenseEntry(BaseModel):
-    """Per-dataset license entry for aggregated sources.
-
-    Captures the license, DOI, and spectrum count for one contributing
-    dataset within a source library. Used to break down the umbrella license
-    of aggregated sources (notably ECOSIS) into the actual mix of licenses
-    that the contributing datasets carry.
-    """
-
-    id: str = Field(description="Identifier of the contributing dataset within the source.")
-    title: str = Field(description="Human-readable title of the contributing dataset.")
-    url: Optional[str] = Field(default=None, description="URL to the dataset's landing page.")
-    license: Optional[str] = Field(default=None, description="License governing this dataset.")
-    license_url: Optional[str] = Field(
-        default=None, description="URL to the full license text, if available."
+    citation: str = Field(min_length=1, description="Recommended citation.")
+    inclusion: Inclusion = Field(description="``complete`` or ``subset``.")
+    inclusion_notes: Optional[str] = Field(
+        default=None, description="How a subset was chosen (required for ``subset``)."
     )
-    citation: Optional[str] = Field(
-        default=None, description="Recommended citation for this dataset."
-    )
-    citation_doi: Optional[str] = Field(
-        default=None, description="DOI for the citation, if available."
-    )
-    authors: Optional[str] = Field(default=None, description="Authors of the dataset.")
-    organization: Optional[str] = Field(
-        default=None, description="Contributing organization or institution."
-    )
-    spectrum_count: int = Field(ge=0, description="Number of spectra from this dataset.")
+    keywords: list[str] = Field(default_factory=list, description="Search keywords.")
+
+    @model_validator(mode="after")
+    def _check_subset_notes(self) -> "CollectionInfo":
+        """Require ``inclusion_notes`` for a subset.
+
+        Returns:
+            The validated model.
+
+        Raises:
+            ValueError: If a subset has no notes.
+        """
+        if self.inclusion is Inclusion.SUBSET and not self.inclusion_notes:
+            raise ValueError("a subset collection must explain its selection in inclusion_notes")
+        return self
+
+    @model_validator(mode="after")
+    def _check_licenses(self) -> "CollectionInfo":
+        """Validate the licence, the ``license_refs`` keys and their use (F11).
+
+        Returns:
+            The validated model.
+
+        Raises:
+            ValueError: If the licence is not a valid expression, a
+                ``license_refs`` key is not ``LicenseRef-[A-Za-z0-9.-]+``, or
+                the licence uses an undefined ``LicenseRef-``.
+        """
+        for key in self.license_refs:
+            if not _LICENSE_REF_RE.match(key):
+                raise ValueError(
+                    f"license_refs key {key!r} must match {LICENSE_REF_PATTERN} "
+                    "(letters, digits, '.' and '-' only)"
+                )
+        undefined = license_refs_used(self.license) - set(self.license_refs)
+        if undefined:
+            raise ValueError(f"collection licence uses undefined {sorted(undefined)}")
+        return self
+
+    def to_footer(self) -> dict[str, Any]:
+        """Render the footer ``collection`` object.
+
+        Returns:
+            A JSON-serialisable dict valid against ``#/$defs/collection``,
+            with unset optional fields omitted.
+        """
+        data = self.model_dump(mode="json", exclude_none=True)
+        if not data.get("license_refs"):
+            data.pop("license_refs", None)
+        if not data.get("keywords"):
+            data.pop("keywords", None)
+        return data
 
 
-class LicenseEntry(BaseModel):
-    """Licensing and citation information for a single source library."""
+class DatasetInfo(BaseModel):
+    """A contributing dataset of an aggregated collection (footer ``datasets`` entry)."""
 
-    name: str = Field(description="Full name of the source library.")
-    version: str = Field(description="Version of the source library.")
-    url: str = Field(description="DOI or URL for the source library.")
-    license: str = Field(description="License governing the source data.")
-    license_url: Optional[str] = Field(
-        default=None, description="URL to the full license text, if available."
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, description="Dataset key, referenced by rows' ``dataset_id``.")
+    title: str = Field(min_length=1, description="Dataset title.")
+    description: Optional[str] = Field(default=None, description="Free-text description.")
+    url: Optional[str] = Field(default=None, description="Dataset landing page.")
+    doi: Optional[str] = Field(
+        default=None, pattern=DOI_PATTERN, description="Dataset DOI (bare, 10.x/...)."
     )
-    citation: str = Field(description="Recommended citation string.")
-    citation_doi: Optional[str] = Field(
-        default=None, description="DOI for the citation, if available."
-    )
-    datasets: Optional[dict[str, DatasetLicenseEntry]] = Field(
+    license: Optional[str] = Field(
         default=None,
-        description=(
-            "Per-dataset breakdown for aggregated sources (ECOSIS, OSSL), keyed by "
-            "dataset id. ``None`` for monolithic sources."
-        ),
+        description="SPDX expression, ``LicenseRef-`` identifier or ``NOASSERTION``.",
     )
 
+    @field_validator("license")
+    @classmethod
+    def _check_license(cls, value: Optional[str]) -> Optional[str]:
+        """Validate the licence expression syntax (rule F11).
 
-class LicensesFile(BaseModel):
-    """Top-level structure of the licenses.json file.
+        Args:
+            value: The licence expression, or ``None``.
 
-    Provides a standalone index of licensing and citation information for
-    each source library, keyed by the same source identifiers used in the
-    catalog and Parquet files (e.g. ``usgs_splib07``, ``ecostress``).
+        Returns:
+            The unchanged expression.
+        """
+        if value is not None:
+            license_refs_used(value)
+        return value
+
+    license_note: Optional[str] = Field(default=None, description="Licence clarification.")
+    citation: Optional[str] = Field(default=None, description="Recommended citation.")
+    authors: Optional[str] = Field(default=None, description="Authors (semicolon-delimited).")
+    organization: Optional[str] = Field(default=None, description="Contributing organisation.")
+    inclusion: Optional[Inclusion] = Field(default=None, description="``complete`` or ``subset``.")
+    inclusion_notes: Optional[str] = Field(default=None, description="How a subset was chosen.")
+    spectra_available: Optional[int] = Field(
+        default=None, ge=0, description="Spectra the source publishes for this dataset."
+    )
+    spectra_included: Optional[int] = Field(
+        default=None, ge=0, description="Spectra of this dataset in the collection."
+    )
+
+    def to_footer(self) -> dict[str, Any]:
+        """Render the footer ``datasets`` entry (the id is the map key, not a field).
+
+        Returns:
+            A JSON-serialisable dict valid against ``#/$defs/dataset``.
+        """
+        return self.model_dump(mode="json", exclude_none=True, exclude={"id"})
+
+
+class CollectionMetadata(BaseModel):
+    """Collection and dataset metadata written next to an ingested JSONL file.
+
+    ``openspeclib ingest`` writes it as ``{collection}.collection.json`` so
+    that ``combine`` can build the footer without re-running the loader.
     """
 
-    openspeclib_version: str = Field(description="Version of the OpenSpecLib schema.")
-    generated_at: _dt.datetime = Field(description="Timestamp when the file was generated.")
-    notice: str = Field(
-        description=(
-            "Important notice that licensing terms differ between source libraries "
-            "and users must check the terms for each source they use."
-        ),
-    )
-    sources: dict[str, LicenseEntry] = Field(
-        description="Licensing and citation info keyed by source library identifier."
+    collection: CollectionInfo = Field(description="The footer ``collection`` object.")
+    datasets: dict[str, DatasetInfo] = Field(
+        default_factory=dict, description="Contributing datasets keyed by dataset id."
     )

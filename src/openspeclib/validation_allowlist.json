@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "description": "Spectra whose values legitimately fall outside the validator's hard bounds, or otherwise need a named per-spectrum check waived. Every entry must say why. Entries that no longer match any issue are reported as stale warnings so this list shrinks as loaders are fixed. Format: see openspeclib.validate.AllowlistEntry.",
+  "entries": [
+    {
+      "id": "usgs_splib07:splib07a_LawnGrass_GDS91b_-shiftd_3nm_BECKa_AREF",
+      "checks": ["value_out_of_bounds"],
+      "bounds": {"max": 2.1},
+      "reason": "Published by USGS as-is: a ratio-like test spectrum (wavelength-shifted LawnGrass, values ~1.0 from 0.3 to 2.3 um rather than a grass reflectance curve). Its 2.014 peak is a single noisy point in the 2.75 um water band. Not a scale error; bound raised to 2.1 so any real rescale still fails."
+    }
+  ]
+}

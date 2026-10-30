@@ -1,29 +1,40 @@
-import { useEffect, useState } from 'react';
-import { OPENSPECLIB_VERSION, RELEASE_URL } from '../../constants/urls';
-import { fetchChecksums, fetchLicenses } from '../../lib/catalog';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useDialog } from '../common/useDialog';
+import { INDEX_FILE, OPENSPECLIB_VERSION, RELEASE_URL } from '../../constants/urls';
+import { loadChecksums } from '../../lib/data/browser';
 import { useAppContext } from '../../state/AppContext';
-import type { DatasetLicenseEntry, LicensesFile } from '../../types/catalog';
+import type { CollectionMeta, DatasetMeta } from '../../lib/data/types';
+import { Prose } from '../format/common';
+import { LICENSING_URL } from '../../format/links';
 
 type TabId = 'overview' | 'data' | 'resampling' | 'licensing';
 
 const TABS: ReadonlyArray<{ id: TabId; label: string }> = [
   { id: 'overview', label: 'Overview' },
-  { id: 'data', label: 'Data sources' },
+  { id: 'data', label: 'Collections' },
   { id: 'resampling', label: 'Resampling' },
   { id: 'licensing', label: 'Licensing' },
 ];
 
 export function InfoModal({ onClose }: { onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
+  useDialog(dialogRef, onClose);
 
-  // Close on escape so the modal feels native.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  const onTabKey = (e: KeyboardEvent<HTMLDivElement>) => {
+    const i = TABS.findIndex((t) => t.id === activeTab);
+    const next =
+      e.key === 'ArrowRight' ? (i + 1) % TABS.length
+      : e.key === 'ArrowLeft' ? (i - 1 + TABS.length) % TABS.length
+      : e.key === 'Home' ? 0
+      : e.key === 'End' ? TABS.length - 1
+      : null;
+    if (next === null) return;
+    e.preventDefault();
+    setActiveTab(TABS[next].id);
+    tabRefs.current[TABS[next].id]?.focus();
+  };
 
   return (
     <div
@@ -31,12 +42,16 @@ export function InfoModal({ onClose }: { onClose: () => void }) {
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="about-title"
         className="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">About OpenSpecLib Viewer</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <h2 id="about-title" className="text-lg font-semibold text-gray-900">About OpenSpecLib Viewer</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"
@@ -48,28 +63,46 @@ export function InfoModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="px-6 pt-3 border-b border-gray-100">
-          <nav className="flex gap-1" aria-label="About sections">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={
-                  'px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ' +
-                  (activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-700'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')
-                }
-                aria-current={activeTab === tab.id ? 'page' : undefined}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+        <div className="px-6 pt-3 border-b border-gray-100 overflow-x-auto">
+          {/* WAI-ARIA tabs: arrow keys, Home and End move between tabs; Tab moves into the panel. */}
+          <div className="flex gap-1" role="tablist" aria-label="About sections" onKeyDown={onTabKey}>
+            {TABS.map((tab) => {
+              const selected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
+                  type="button"
+                  role="tab"
+                  id={`about-tab-${tab.id}`}
+                  aria-selected={selected}
+                  aria-controls={`about-panel-${tab.id}`}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={
+                    'px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ' +
+                    (selected
+                      ? 'border-indigo-500 text-indigo-700'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300')
+                  }
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        <div className="px-6 py-5 overflow-y-auto text-sm text-gray-700 space-y-4">
-          {activeTab === 'overview' && <OverviewTab />}
+        <div
+          role="tabpanel"
+          id={`about-panel-${activeTab}`}
+          aria-labelledby={`about-tab-${activeTab}`}
+          tabIndex={0}
+          className="px-6 py-5 overflow-y-auto text-sm text-gray-700 space-y-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-500"
+        >
+          {activeTab === 'overview' && <OverviewTab onClose={onClose} />}
           {activeTab === 'data' && <DataTab />}
           {activeTab === 'resampling' && <ResamplingTab />}
           {activeTab === 'licensing' && <LicensingTab />}
@@ -92,151 +125,111 @@ export function InfoModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function OverviewTab() {
+function OverviewTab({ onClose }: { onClose: () => void }) {
+  const { dispatch } = useAppContext();
   return (
     <>
       <p>
-        <strong>OpenSpecLib</strong> is an open-source spectral library that unifies
-        data from major reference collections (USGS Speclib 07, ECOSTRESS, EcoSIS,
-        and more) into a single, standardized format.
+        <strong>OpenSpecLib</strong> gathers spectra from public reference libraries into one open format: the{' '}
+        <strong>OpenSpecLib Format</strong>, one self-describing Parquet file per collection. This release holds the
+        USGS Spectral Library 7, ECOSTRESS and EcoSIS collections (see Collections).
       </p>
 
       <div>
         <h3 className="font-semibold text-gray-900 mb-1">What is this viewer?</h3>
         <p className="text-gray-600">
-          A browser-based tool to search, explore, and visualize spectra from
-          OpenSpecLib releases. It runs entirely client-side using DuckDB-WASM to
-          query Parquet files directly from the release artifacts — no server, no
-          accounts.
+          A browser tool to search, plot and export spectra. It runs entirely in your browser: DuckDB-WASM reads the
+          release's index file, then fetches single spectra from the collection files with HTTP range requests. No
+          server, no accounts.
         </p>
       </div>
 
       <div>
-        <h3 className="font-semibold text-gray-900 mb-1">Use cases</h3>
-        <ul className="list-disc list-inside space-y-1 text-gray-600">
-          <li>Building custom spectral libraries for remote-sensing classification</li>
-          <li>Comparing mineral, rock, soil, and vegetation reference spectra</li>
-          <li>Previewing how materials appear at different sensor resolutions</li>
-          <li>Exporting spectra in CSV or ENVI format for use in other tools</li>
-          <li>Education and research in spectroscopy and remote sensing</li>
-        </ul>
+        <h3 className="font-semibold text-gray-900 mb-1">Your own spectra</h3>
+        <p className="text-gray-600">
+          Any file in the OpenSpecLib Format opens here next to the OpenSpecLib data ("Open a collection" in the
+          sidebar), and the{' '}
+          <button
+            type="button"
+            onClick={() => {
+              dispatch({ type: 'SET_VIEW', view: 'format', page: 'check' });
+              onClose();
+            }}
+            className="text-indigo-600 hover:text-indigo-800 underline"
+          >
+            checker
+          </button>{' '}
+          tells you whether a file conforms. Files are read in place, never uploaded.
+        </p>
       </div>
 
       <div>
-        <h3 className="font-semibold text-gray-900 mb-1">Reflectance scale</h3>
+        <h3 className="font-semibold text-gray-900 mb-1">Values and units</h3>
         <p className="text-gray-600">
-          All spectra are normalised to the <strong>0–1 unit interval</strong>.
-          OpenSpecLib assumes every source scale is a power-of-10 multiplier of the
-          unit interval — one of <code className="bg-gray-100 px-1 rounded">0–1</code>,{' '}
-          <code className="bg-gray-100 px-1 rounded">0–100</code>, or{' '}
-          <code className="bg-gray-100 px-1 rounded">0–10000</code> — and infers
-          which one applies per dataset from the data itself. The pre-normalisation
-          divisor, when non-trivial, is recorded in each record's
-          <code className="bg-gray-100 px-1 rounded ml-1">additional_properties</code>{' '}
-          for provenance.
+          Each spectrum states its quantity (reflectance, transmittance, emissivity or absorbance) and its measurement
+          geometry. Reflectance, transmittance and emissivity are fractions (0–1); NaN marks a missing band.
+          Wavelengths stay in the unit the source published; the viewer plots them in micrometres.
         </p>
       </div>
     </>
   );
 }
 
-interface SourceRow {
-  key: string;
-  name: string;
-  count?: number;
-  license?: string;
-  citationDoi?: string | null;
-  url?: string;
-  datasets?: Record<string, DatasetLicenseEntry> | null;
-}
-
-function DatasetBreakdown({
-  datasets,
-}: {
-  datasets: Record<string, DatasetLicenseEntry>;
-}) {
-  // Sorted by spectrum count desc; ties broken by title for stable order.
-  const entries = Object.values(datasets).sort(
-    (a, b) => b.spectrum_count - a.spectrum_count || a.title.localeCompare(b.title),
-  );
-  const totalEntries = entries.length;
-  const uniqueLicenses = new Set(
-    entries.map((d) => d.license).filter((x): x is string => Boolean(x)),
-  );
-
+function DatasetBreakdown({ meta, counts }: { meta: CollectionMeta; counts: Map<string, number> }) {
+  const datasets = Object.entries(meta.footer.datasets ?? {}) as Array<[string, DatasetMeta]>;
+  if (datasets.length === 0) return null;
+  const entries = datasets
+    .map(([id, d]) => ({ id, d, n: counts.get(id) ?? 0 }))
+    .sort((a, b) => b.n - a.n || a.d.title.localeCompare(b.d.title));
+  const licences = new Set(entries.map((e) => e.d.license).filter(Boolean));
+  const refs = meta.footer.collection.license_refs ?? {};
   return (
     <details className="mt-3 pt-3 border-t border-gray-100">
       <summary className="cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900">
-        Contributing datasets ({totalEntries.toLocaleString()}
-        {uniqueLicenses.size > 1 && (
-          <span className="text-amber-700"> · {uniqueLicenses.size} licenses</span>
-        )}
-        )
+        Contributing datasets ({entries.length.toLocaleString()}
+        {licences.size > 1 && <span className="text-amber-700"> · {licences.size} licences</span>})
       </summary>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-[11px]">
           <thead>
             <tr className="text-gray-400 uppercase tracking-wide">
               <th className="text-left font-medium px-2 py-1">Dataset</th>
-              <th className="text-left font-medium px-2 py-1">License</th>
+              <th className="text-left font-medium px-2 py-1">Licence</th>
               <th className="text-left font-medium px-2 py-1">DOI</th>
               <th className="text-right font-medium px-2 py-1">Spectra</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {entries.map((d) => (
-              <tr key={d.id} className="align-top">
+            {entries.map(({ id, d, n }) => (
+              <tr key={id} className="align-top">
                 <td className="px-2 py-1 max-w-[260px]">
                   {d.url ? (
-                    <a
-                      href={d.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-800 underline"
-                      title={d.title}
-                    >
+                    <a href={d.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline" title={d.title}>
                       {d.title}
                     </a>
                   ) : (
-                    <span className="text-gray-700" title={d.title}>
-                      {d.title}
-                    </span>
+                    <span className="text-gray-700">{d.title}</span>
                   )}
-                  {d.organization && (
-                    <div className="text-gray-400 text-[10px] mt-0.5">{d.organization}</div>
+                  {d.organization && <div className="text-gray-400 text-[10px] mt-0.5">{d.organization}</div>}
+                  {d.inclusion === 'subset' && d.spectra_available != null && (
+                    <div className="text-gray-400 text-[10px]">
+                      subset: {d.spectra_included ?? n} of {d.spectra_available}
+                    </div>
                   )}
                 </td>
-                <td className="px-2 py-1 text-gray-700">
-                  {d.license_url ? (
-                    <a
-                      href={d.license_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline hover:text-indigo-700"
-                    >
-                      {d.license ?? '—'}
-                    </a>
-                  ) : (
-                    d.license ?? '—'
-                  )}
+                <td className="px-2 py-1 text-gray-700" title={d.license}>
+                  {d.license ? refs[d.license]?.name ?? d.license : '—'}
                 </td>
                 <td className="px-2 py-1 font-mono">
-                  {d.citation_doi ? (
-                    <a
-                      href={`https://doi.org/${d.citation_doi}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-800 underline"
-                    >
-                      {d.citation_doi}
+                  {d.doi ? (
+                    <a href={`https://doi.org/${d.doi}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline">
+                      {d.doi}
                     </a>
                   ) : (
                     '—'
                   )}
                 </td>
-                <td className="px-2 py-1 text-right text-gray-600 font-mono">
-                  {d.spectrum_count.toLocaleString()}
-                </td>
+                <td className="px-2 py-1 text-right text-gray-600 font-mono">{n.toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
@@ -248,143 +241,110 @@ function DatasetBreakdown({
 
 function DataTab() {
   const { state } = useAppContext();
-  const [licenses, setLicenses] = useState<LicensesFile | null>(null);
   const [checksums, setChecksums] = useState<Map<string, string> | null>(null);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchLicenses(), fetchChecksums()]).then(([lic, sums]) => {
-      if (cancelled) return;
-      setLicenses(lic);
-      setChecksums(sums);
-      setLoading(false);
+    void loadChecksums().then((c) => {
+      if (!cancelled) setChecksums(c);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Cross-reference catalog source counts (already in memory) with licenses.
-  const sourceCounts = new Map<string, number>();
-  for (const r of state.catalogRecords) {
-    sourceCounts.set(r.source.library, (sourceCounts.get(r.source.library) ?? 0) + 1);
-  }
+  const release = state.sources.get('release');
+  const collections = [...state.collections.values()];
+  const datasetCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of state.records) if (r.dataset_id) m.set(r.dataset_id, (m.get(r.dataset_id) ?? 0) + 1);
+    return m;
+  }, [state.records]);
 
-  const rows: SourceRow[] = [];
-  if (licenses) {
-    for (const [key, info] of Object.entries(licenses.sources)) {
-      rows.push({
-        key,
-        name: info.name || key,
-        count: sourceCounts.get(key),
-        license: info.license,
-        citationDoi: info.citation_doi,
-        url: info.url,
-        datasets: info.datasets ?? null,
-      });
-    }
-  } else {
-    // Fallback when licenses.json isn't deployed yet — still show what
-    // we know from the catalog.
-    for (const [key, count] of sourceCounts) {
-      rows.push({ key, name: key, count });
-    }
+  if (!state.dataLoaded) {
+    return <p className="text-gray-400 text-xs">{state.indexError ? `The index failed to load: ${state.indexError}` : 'Loading the index…'}</p>;
   }
 
   return (
     <>
       <p>
-        OpenSpecLib v{OPENSPECLIB_VERSION} ships {state.catalogRecords.length.toLocaleString()}{' '}
-        spectra across {rows.length} source libraries. Each source is a single
-        zstd-compressed Parquet file with column statistics enabled, so HTTP
-        Range queries fetch only the row groups they need.
+        OpenSpecLib {release?.release ?? OPENSPECLIB_VERSION} holds{' '}
+        {state.records.filter((r) => r.sourceKey === 'release').length.toLocaleString()} spectra in{' '}
+        {collections.filter((c) => c.sourceKey === 'release').length} collections. Each collection is one Parquet file
+        in the OpenSpecLib Format; <code className="bg-gray-100 px-1 rounded">{INDEX_FILE}</code> lists every spectrum
+        without its arrays, for searching.
+        {release?.created && <span className="text-gray-500"> Built {release.created.slice(0, 10)} by {release.generator}.</span>}
       </p>
 
-      {loading && <p className="text-gray-400 text-xs">Loading source metadata…</p>}
-
       <div className="space-y-3">
-        {rows.map((r) => {
-          const filename = `${r.key}.parquet`;
-          const sha = checksums?.get(filename);
+        {collections.map((c) => {
+          const coll = c.footer.collection;
+          const src = state.sources.get(c.sourceKey);
+          const sha = c.sha256 ?? checksums?.get(c.file);
+          const link = coll.doi ? `https://doi.org/${coll.doi}` : coll.url;
           return (
-            <div key={r.key} className="border border-gray-200 rounded-lg p-3">
+            <div key={c.id} className="border border-gray-200 rounded-lg p-3">
               <div className="flex items-baseline justify-between gap-2 mb-1">
-                <h4 className="font-semibold text-gray-900">{r.name}</h4>
-                {r.count !== undefined && (
-                  <span className="text-xs text-gray-500 font-mono">
-                    {r.count.toLocaleString()} spectra
-                  </span>
-                )}
+                <h4 className="font-semibold text-gray-900">
+                  {coll.title}
+                  {src && src.kind !== 'release' && (
+                    <span className="ml-2 px-1 py-px text-[10px] font-normal rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      opened this session
+                    </span>
+                  )}
+                </h4>
+                <span className="text-xs text-gray-500 font-mono">{c.numSpectra.toLocaleString()} spectra</span>
               </div>
+              {coll.description && <p className="text-xs text-gray-600 mb-2"><Prose text={coll.description} /></p>}
               <dl className="grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs text-gray-600">
-                {r.url && (
+                {coll.publisher && (
+                  <>
+                    <dt className="text-gray-400">Publisher</dt>
+                    <dd>{coll.publisher}</dd>
+                  </>
+                )}
+                {coll.version && (
+                  <>
+                    <dt className="text-gray-400">Version</dt>
+                    <dd>{coll.version}</dd>
+                  </>
+                )}
+                {link && (
                   <>
                     <dt className="text-gray-400">Source</dt>
                     <dd className="truncate">
-                      <a
-                        href={r.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:text-indigo-800 underline"
-                      >
-                        {r.url}
+                      <a href={link} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:text-indigo-800 underline">
+                        {link}
                       </a>
                     </dd>
                   </>
                 )}
-                {r.license && (
-                  <>
-                    <dt className="text-gray-400">License</dt>
-                    <dd>{r.license}</dd>
-                  </>
-                )}
-                {r.citationDoi && (
-                  <>
-                    <dt className="text-gray-400">DOI</dt>
-                    <dd>
-                      <a
-                        href={`https://doi.org/${r.citationDoi}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:text-indigo-800 underline font-mono"
-                      >
-                        {r.citationDoi}
-                      </a>
-                    </dd>
-                  </>
-                )}
+                <dt className="text-gray-400">Licence</dt>
+                <dd>
+                  {coll.license_refs?.[coll.license]?.name ?? coll.license}
+                  {coll.license_note && <span className="block text-gray-400"><Prose text={coll.license_note} /></span>}
+                </dd>
+                <dt className="text-gray-400">Inclusion</dt>
+                <dd>
+                  {coll.inclusion}
+                  {coll.inclusion_notes && <span className="text-gray-400"> — <Prose text={coll.inclusion_notes} /></span>}
+                </dd>
                 <dt className="text-gray-400">File</dt>
-                <dd className="font-mono">{filename}</dd>
+                <dd className="font-mono">{c.file}</dd>
                 {sha && (
                   <>
                     <dt className="text-gray-400">SHA-256</dt>
-                    <dd className="font-mono break-all text-[10px] leading-tight">
-                      {sha}
-                    </dd>
+                    <dd className="font-mono break-all text-[10px] leading-tight">{sha}</dd>
                   </>
                 )}
               </dl>
-              {r.datasets && Object.keys(r.datasets).length > 0 && (
-                <DatasetBreakdown datasets={r.datasets} />
-              )}
+              <DatasetBreakdown meta={c} counts={datasetCounts} />
             </div>
           );
         })}
       </div>
-
-      {!loading && !checksums && (
-        <p className="text-amber-700 text-xs">
-          Checksums file not deployed — verify integrity against the{' '}
-          <a
-            href={RELEASE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline"
-          >
-            release page
-          </a>{' '}
-          directly.
+      {checksums?.get(INDEX_FILE) && (
+        <p className="text-[10px] text-gray-500 break-all">
+          {INDEX_FILE} SHA-256: <span className="font-mono">{checksums.get(INDEX_FILE)}</span>
         </p>
       )}
     </>
@@ -600,59 +560,65 @@ r_band         = 0.889 / 3.20 ≈ 0.278`}
 }
 
 function LicensingTab() {
-  const [licenses, setLicenses] = useState<LicensesFile | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetchLicenses().then((lic) => {
-      if (!cancelled) setLicenses(lic);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
+  const { state } = useAppContext();
+  const collections = [...state.collections.values()];
   return (
     <>
       <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
         <h3 className="font-semibold text-amber-900 mb-1">Licensing notice</h3>
         <p className="text-amber-800 text-xs">
-          <strong>Licensing terms differ between source spectral libraries.</strong>{' '}
-          Each source has its own license governing how its data may be used. Most
-          sources are public domain, but some (e.g. the Bishop Spectral Library)
-          restrict use to non-commercial purposes with mandatory citation. Always
-          check the{' '}
-          <code className="bg-amber-100 px-1 rounded">source.library</code> field
-          per spectrum and consult the{' '}
+          <strong>Licences differ between collections, and in EcoSIS between datasets.</strong> Every spectrum carries
+          its own licence (its <code className="bg-amber-100 px-1 rounded">license</code> column, shown in its
+          details), which is authoritative. Exports include the licences and citations of the spectra they contain.
+          See the{' '}
           <a
-            href="https://github.com/null-jones/openspeclib/blob/main/docs/licensing.md"
+            href={LICENSING_URL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-amber-700 underline hover:text-amber-900"
           >
             licensing documentation
-          </a>{' '}
-          for full details.
+          </a>
+          .
         </p>
       </div>
-
-      {licenses ? (
-        <div className="space-y-2">
-          {Object.entries(licenses.sources).map(([key, info]) => (
-            <div key={key} className="border border-gray-200 rounded-lg p-3 text-xs">
-              <div className="font-semibold text-gray-900 text-sm mb-1">{info.name}</div>
-              <div className="text-gray-700">{info.license}</div>
-              {info.citation && (
-                <div className="text-gray-500 mt-1 italic">{info.citation}</div>
+      <div className="space-y-2">
+        {collections.map((c) => {
+          const coll = c.footer.collection;
+          const refs = Object.entries(coll.license_refs ?? {});
+          return (
+            <div key={c.id} className="border border-gray-200 rounded-lg p-3 text-xs">
+              <div className="font-semibold text-gray-900 text-sm mb-1">{coll.title}</div>
+              <div className="text-gray-700">
+                {coll.license_refs?.[coll.license]?.name ?? coll.license}
+                {coll.license !== (coll.license_refs?.[coll.license]?.name ?? coll.license) && (
+                  <span className="ml-1 font-mono text-gray-400">{coll.license}</span>
+                )}
+              </div>
+              {coll.license_note && <div className="text-gray-500 mt-1"><Prose text={coll.license_note} /></div>}
+              {refs.length > 0 && (
+                <ul className="mt-1 space-y-0.5 text-gray-500">
+                  {refs.map(([id, r]) => (
+                    <li key={id}>
+                      <span className="font-mono">{id}</span>: {r.name}
+                      {r.url && (
+                        <>
+                          {' '}
+                          <a href={r.url} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">
+                            terms
+                          </a>
+                        </>
+                      )}
+                      {r.text && <p className="mt-0.5 text-gray-500">{r.text}</p>}
+                    </li>
+                  ))}
+                </ul>
               )}
+              {coll.citation && <div className="text-gray-500 mt-1 italic">{coll.citation}</div>}
             </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-gray-400 text-xs">
-          Per-source license details unavailable in this deployment.
-        </p>
-      )}
+          );
+        })}
+      </div>
     </>
   );
 }

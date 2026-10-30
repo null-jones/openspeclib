@@ -14,16 +14,24 @@ from typing import Iterator
 
 from tqdm import tqdm
 
-from openspeclib.loaders.base import BaseLoader
+from openspeclib.loaders.base import (
+    GENERIC_SENTINELS,
+    BaseLoader,
+    drop_invalid_wavelengths,
+    mask_invalid_values,
+    monotonic_axis,
+    spectrum_id,
+)
 from openspeclib.models import (
+    CollectionInfo,
+    Geometry,
+    Inclusion,
+    LicenseRef,
     Material,
     MaterialCategory,
     Measurement,
-    MeasurementTechnique,
-    Quality,
+    Quantity,
     Sample,
-    Source,
-    SourceLibrary,
     SpectralData,
     SpectrumRecord,
     WavelengthUnit,
@@ -31,24 +39,52 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
-BISHOP_SOURCE = Source(
-    library=SourceLibrary.BISHOP,
-    library_version="1.0",
-    original_id="",
+COLLECTION_ID = "bishop"
+
+BISHOP_LICENSE = "LicenseRef-Bishop-NonCommercial"
+
+BISHOP_COLLECTION = CollectionInfo(
+    id=COLLECTION_ID,
+    title="Bishop Spectral Library",
+    description=(
+        "Reflectance spectra of minerals with emphasis on carbonates, hydrated minerals, "
+        "phyllosilicates, sulfates and ices, curated by Janice Bishop at the SETI Institute."
+    ),
+    version="1.0",
     url="https://dmp.seti.org/jbishop/spectral-library.html",
-    license="Public Domain (non-commercial use with citation)",
+    publisher="SETI Institute",
+    license=BISHOP_LICENSE,
+    license_refs={
+        BISHOP_LICENSE: LicenseRef(
+            name="Bishop Spectral Library terms: non-commercial use with citation",
+            text=(
+                "Free for non-commercial use; publications using the spectra must cite "
+                "the library."
+            ),
+            url="https://dmp.seti.org/jbishop/spectral-library.html",
+        )
+    },
+    inclusion=Inclusion.SUBSET,
+    inclusion_notes=(
+        "Whatever spectra are placed in the ingest directory by hand (the source has no "
+        "automatic download), so completeness depends on that download."
+    ),
     citation=(
         "Bishop, J.L., Lane, M.D., Dyar, M.D., and Brown, A.J., "
         "Reflectance and emission spectroscopy study of four groups "
         "of phyllosilicates: smectites, kaolinite-serpentines, chlorites "
-        "and micas. Clay Minerals, 43, 35-54, 2008."
+        "and micas. Clay Minerals, 43, 35-54, 2008. "
+        "https://doi.org/10.1180/claymin.2008.043.1.03."
     ),
 )
 
-BISHOP_SOURCE_INFO_EXTRA = {
-    "license_url": None,
-    "citation_doi": "10.1180/claymin.2008.043.1.03",
-}
+# Measurement geometry recorded on every Bishop record: ``unknown`` (spec
+# section 4.2). The library's spectra come from more than one set-up (much of
+# it measured at RELAB, whose bidirectional VNIR and FTIR data are often
+# spliced into one spectrum), and the files this loader reads neither name the
+# instrument nor state the geometry, so no single value is right. For the same
+# reason no instrument type is recorded.
+BISHOP_GEOMETRY = Geometry.UNKNOWN
 
 BISHOP_CATEGORY_MAP: dict[str, MaterialCategory] = {
     "carbonate": MaterialCategory.MINERAL,
@@ -181,6 +217,12 @@ def parse_bishop_file(filepath: Path) -> SpectrumRecord:
             except ValueError:
                 continue
 
+    # Missing-value contract (see loaders.base): no NaN wavelengths, and
+    # sentinel / non-finite values become NaN.
+    wavelengths, values = drop_invalid_wavelengths(wavelengths, values)
+    values = mask_invalid_values(values, sentinels=GENERIC_SENTINELS)
+    wavelengths, values, axis_extra = monotonic_axis(wavelengths, values)
+
     if not wavelengths:
         raise ValueError(f"No spectral data found in {filepath}")
 
@@ -195,11 +237,11 @@ def parse_bishop_file(filepath: Path) -> SpectrumRecord:
     original_id = filepath.stem
 
     return SpectrumRecord(
-        id=f"bishop:{original_id}",
+        id=spectrum_id(COLLECTION_ID, original_id),
+        collection=COLLECTION_ID,
+        original_id=original_id,
         name=name,
-        source=BISHOP_SOURCE.model_copy(
-            update={"original_id": original_id, "filename": filepath.name}
-        ),
+        license=BISHOP_LICENSE,
         material=Material(
             name=name,
             category=category,
@@ -213,24 +255,16 @@ def parse_bishop_file(filepath: Path) -> SpectrumRecord:
             owner="SETI Institute / J. Bishop",
         ),
         measurement=Measurement(
-            instrument_type="laboratory_spectrometer",
+            quantity=Quantity.REFLECTANCE,
+            geometry=BISHOP_GEOMETRY,
             laboratory="SETI Institute",
-            technique=MeasurementTechnique.REFLECTANCE,
         ),
         spectral_data=SpectralData(
-            type=MeasurementTechnique.REFLECTANCE,
             wavelength_unit=wl_unit,
-            wavelength_min=min(wavelengths),
-            wavelength_max=max(wavelengths),
-            num_points=len(wavelengths),
             wavelengths=wavelengths,
             values=values,
         ),
-        quality=Quality(
-            has_bad_bands=False,
-            bad_band_count=0,
-            coverage_fraction=1.0,
-        ),
+        extra=axis_extra,
     )
 
 
@@ -243,8 +277,16 @@ class BishopLoader(BaseLoader):
         return False
 
     def source_name(self) -> str:
-        """Return the source library identifier."""
-        return "bishop"
+        """Return the collection id."""
+        return COLLECTION_ID
+
+    def collection_info(self) -> CollectionInfo:
+        """Return the Bishop Spectral Library collection metadata.
+
+        Returns:
+            The footer ``collection`` object.
+        """
+        return BISHOP_COLLECTION
 
     def download(self, target_dir: Path) -> Path:
         """Download Bishop Spectral Library data.

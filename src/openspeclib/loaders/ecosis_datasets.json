@@ -1,78 +1,638 @@
 [
   {
     "id": "03e46f54-7d68-4a8c-896a-fcea87e9cf10",
-    "name": "2008 UW Biotron Fresh Leaf Spectra and Gas Exchange Leaf Traits"
+    "name": "2008 UW Biotron Fresh Leaf Spectra and Gas Exchange Leaf Traits",
+    "inclusion": "full",
+    "reason": "Fresh-leaf reflectance with per-spectrum species identity (Common Name / Latin name: quaking aspen, eastern cottonwood).",
+    "available_spectra": 87,
+    "setup": {
+      "default": {
+        "geometry": "biconical",
+        "instrument": "ASD FieldSpec 3",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Acquisition Method 'contact', Foreoptic Type 'leaf clip' (ASD leaf clip/contact probe), Light Source 'lamp' (calibrated lamp), ASD FieldSpec 3: lamp-illuminated leaf clip, i.e. biconical."
+    }
   },
   {
     "id": "a12286ac-929f-4e3e-9b9c-517e10fe4087",
-    "name": "CABO 2018-2019 Leaf-Level Spectra v2"
+    "name": "CABO 2018-2019 Leaf-Level Spectra v2",
+    "inclusion": "full",
+    "reason": "Leaf reflectance and transmittance of ~103 species with per-spectrum Latin names. The package uploads reflectance (ref_spec.csv, 3,879 rows), transmittance (trans_spec.csv, 1,971) and absorptance (abs_spec.csv, 1,971) as separate resources with no per-spectrum Measurement Quantity, so the quantity is taken from the resource. ref_spec.csv holds only 1,971 distinct spectra: 1,908 sample_ids were uploaded twice with identical metadata and datapoints (only the EcoSIS _id differs); the repeats are collapsed as duplicates. The 1,971 absorptance spectra are dropped as an unsupported quantity: absorptance (1 - R - T) is derived from the reflectance/transmittance pairs already ingested and is not log10 absorbance. Expected: 1,971 reflectance + 1,971 transmittance.",
+    "available_spectra": 7821,
+    "resource_techniques": {
+      "^ref_spec\\.csv$": "reflectance",
+      "^trans_spec\\.csv$": "transmittance",
+      "^abs_spec\\.csv$": "absorptance"
+    },
+    "dedupe_key": "content",
+    "setup": {
+      "default": {
+        "geometry": "directional_hemispherical",
+        "instrument": "SVC HR-1024i",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Foreoptic Type 'integrating sphere', Light Source 'lamp', SVC HR-1024i: reflectance and transmittance are both integrating-sphere measurements."
+    }
   },
   {
     "id": "13658942-1760-41c5-944b-ccbdaebf3127",
-    "name": "2010-2017 Atqasuk Alaska CALM Plots Canopy Reflectance Spectra"
+    "name": "2010-2017 Atqasuk Alaska CALM Plots Canopy Reflectance Spectra",
+    "inclusion": "full",
+    "reason": "Small dataset of arctic tundra canopy reflectance; the library's main coverage of that land-cover type. Spectra carry no per-spectrum species, so they are named as tundra canopy rather than by the dataset title. 30 canopy spectra (2016, day 213) are saturated, with 75-97% of their bands at exactly 1.0, and are dropped by the generic saturation check; 7 constant spectra (5 all 0, 2 all 1.0) are dropped as constant fills.",
+    "available_spectra": 870,
+    "identity": {
+      "material_name": "arctic tundra canopy",
+      "keywords": [
+        "tundra",
+        "arctic",
+        "canopy"
+      ]
+    },
+    "reference": "spectralon",
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "PP Systems UniSpec DC",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Acquisition Method 'proximal', Foreoptic Type 'foreoptic', Light Source 'sun', outdoor, Unispec DC on a tripod boom; description: calibrated with a Spectralon white reference panel."
+    }
   },
   {
     "id": "c7b6affd-8b15-4f95-abf1-9956d8af1d52",
-    "name": "Fractional Cover Simulated VSWIR Dataset v2"
+    "name": "Fractional Cover Simulated VSWIR Dataset v2",
+    "inclusion": "full",
+    "reason": "Measured field spectra, not simulated: the package 'contains spectra from six field experiments that measured reflectance and fractional cover', its resource is fractional_cover_no_atmcorr_no_noise.csv (the version without simulated sensor noise or atmospheric-correction artefacts), 1,594 spectra cite their field campaign in reference_for_original_field_spectra, and Dennison et al. (2019) Sec. 2.1 describe in situ ASD field spectra convolved to the 10 nm bandpass. Only resampled ('resampled', 'averaged' processing flags), so not 'simulated' under the format's definition. Each record is named 'GV/NPV/soil field plot'. Category: 'mixture' unless one cover fraction is 1 (48 pure endmembers: vegetation, npv or soil by that fraction). gv/npv/soil fractions, type and use (training/validation) are carried.",
+    "available_spectra": 1723,
+    "identity": {
+      "fixed_material_name": "GV/NPV/soil field plot",
+      "keywords": [
+        "mixture",
+        "field plot"
+      ],
+      "keyword_fields": [
+        "type"
+      ],
+      "category_from_max_field": {
+        "gv_fraction": "vegetation",
+        "npv_fraction": "npv",
+        "soil_fraction": "soil"
+      },
+      "mixture_threshold": 0.999
+    },
+    "carry_fields": [
+      "gv_fraction",
+      "npv_fraction",
+      "soil_fraction",
+      "type",
+      "use",
+      "Spectra"
+    ],
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "ASD field spectrometers (FieldSpec Pro, FieldSpec 3, FieldSpec 4, Full Range)",
+        "instrument_type": "field_spectrometer",
+        "light_source": "sun",
+        "acquisition_method": "proximal"
+      },
+      "evidence": "Description: 'spectra from six field experiments that measured reflectance and fractional cover'; package Light Source 'sun', outdoor, Instrument Manufacturer ASD, Foreoptic Type 'bare fiber' and 'foreoptic'. Dennison et al. (2019) Sec. 2.1: in situ ASD field spectra measured at nadir over sunlit plots, with an 18 degree foreoptic or a bare fibre (24-25 degree field of view), convolved to 10 nm bands. The foreoptic varies by campaign, so measurement_foreoptic stays null."
+    }
   },
   {
     "id": "6dc358cd-ce2d-4e97-920a-82a3b04c8bc2",
-    "name": "Urban Materials Spectral Library"
+    "name": "Urban Materials Spectral Library",
+    "inclusion": "full",
+    "reason": "Small identity-bearing dataset of urban surface materials (per-spectrum target type: asphalt, brick/paver, ...).",
+    "available_spectra": 60,
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "Ocean Optics JAZ-EL350",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Acquisition Method 'proximal', Foreoptic Type 'bare fiber' (25 degree field of view), Light Source 'sun' (10am-2pm), outdoor, handheld Ocean Optics JAZ; description: acquired from 1 m distance."
+    }
   },
   {
     "id": "060d2822-f250-4869-b734-4a92450393f0",
-    "name": "Hawaii 2000 Vegetation Species Spectra"
+    "name": "Hawaii 2000 Vegetation Species Spectra",
+    "inclusion": "full",
+    "reason": "Small identity-bearing dataset: spectra of ~98 Hawaiian plant species (per-spectrum common names) plus a few soil and rock targets; the per-spectrum 'Surface Type' (veg/soil/rock) sets the category, and the 9 soil/rock spectra are named 'soil'/'rock' rather than by their spectrum labels. Most spectra are named by Common Name or Latin genus and species (20 spell the fields 'Latin genus'/'Latin species'; field names match case-insensitively). Twelve vegetation spectra carry neither and only a Description saying what they are: they are named 'grass' (h12fgrass, 'green grass, species unkown') and 'ginger' (h19fhedy, 'ginger species, not in bloom') rather than by their spectrum labels.",
+    "available_spectra": 844,
+    "identity": {
+      "target_type_field": "Surface Type",
+      "category_map": {
+        "veg": "vegetation",
+        "soil": "soil",
+        "rock": "rock"
+      },
+      "target_names": {
+        "soil": "soil",
+        "rock": "rock"
+      },
+      "fallback_name_fields": [
+        "Description"
+      ],
+      "material_name_map": {
+        "green grass, species unkown. possibly Deschampsia?": "grass",
+        "ginger species, not in bloom so difficult to tell which species": "ginger"
+      }
+    },
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "ASD field spectrometer",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Acquisition Method 'proximal', Light Source 'sun', Measurement Venue 'outdoor', handheld ASD field spectrometer; description: branch/canopy spectra measured in the field with an ASD field spectrometer: sky illumination, conical view. No foreoptic is stated, so measurement_foreoptic stays null."
+    }
   },
   {
     "id": "85ca4a2e-0a61-4ef7-9e0f-ffa6ea1c2c22",
-    "name": "Intact and Ground Leaf Litter Spectra"
+    "name": "Intact and Ground Leaf Litter Spectra",
+    "inclusion": "full",
+    "reason": "Small identity-bearing dataset: intact and ground leaf-litter spectra with per-spectrum Latin species names; litter is non-photosynthetic vegetation (category npv).",
+    "available_spectra": 643,
+    "identity": {
+      "category": "npv",
+      "keywords": [
+        "litter"
+      ]
+    },
+    "setup": {
+      "default": {
+        "geometry": "biconical",
+        "instrument": "Spectral Evolution PSR+ 3500",
+        "instrument_type": "field_spectrometer"
+      },
+      "resources": {
+        "^intact_spec\\.csv$": {
+          "foreoptic": "leaf clip"
+        },
+        "^ground_spec\\.csv$": {
+          "foreoptic": "benchtop reflectance probe"
+        }
+      },
+      "evidence": "Package metadata: Acquisition Method 'contact', Light Source 'lamp' only, Foreoptic Type 'leaf clip' and 'other' with Foreoptic Type Other 'benchtop reflectance probe', Spectral Evolution PSR+ 3500. Intact litter (intact_spec.csv) -> leaf clip; ground (powdered) litter (ground_spec.csv) -> benchtop reflectance probe. Both are lamp-illuminated contact setups: biconical."
+    }
   },
   {
     "id": "38942519-e925-4cbc-bbbd-ce6dcf276f73",
-    "name": "EMIT Manually Adjusted Water Reflectance Spectra"
+    "name": "EMIT Manually Adjusted Water Reflectance Spectra",
+    "inclusion": "full",
+    "reason": "The library's water spectra. They are not measurements: the package metadata says 'model generated spectra' and 'generated using a parametric water optics model' (Thompson et al. 2019, for EMIT atmospheric correction). Kept as the only water spectra, with a 'simulated' processing flag; every spectrum is a water surface, so the material is named 'water' instead of the dataset title.",
+    "available_spectra": 1999,
+    "identity": {
+      "material_name": "water",
+      "keywords": [
+        "water"
+      ]
+    },
+    "simulated": true,
+    "setup": {
+      "default": {
+        "geometry": "unknown",
+        "instrument": null,
+        "instrument_type": null,
+        "light_source": null,
+        "foreoptic": null,
+        "acquisition_method": null
+      },
+      "evidence": "Package metadata: Instrument Manufacturer/Model 'model generated spectra', Processing 'generated using a parametric water optics model', Acquisition Method and Light Source 'other', Foreoptic 'none'. The spectra are modelled, not measured, so no measurement geometry applies."
+    }
   },
   {
     "id": "99aabe57-37f0-4667-aa7a-ba41ee387a82",
-    "name": "Plastic Pellets Spectral Reference Library"
+    "name": "Plastic Pellets Spectral Reference Library",
+    "inclusion": "full",
+    "reason": "Small identity-bearing dataset: reference spectra of 11 virgin plastic polymer types (named per spectrum), category man_made.",
+    "available_spectra": 11,
+    "identity": {
+      "category": "man_made",
+      "keywords": [
+        "plastic",
+        "polymer"
+      ]
+    },
+    "reference": "spectralon",
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "ASD FieldSpec 4 Wide-Res",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Foreoptic Type 'foreoptic' (1 degree), Light Source 'sun' (ambient light), outdoor, handheld ASD FieldSpec 4; description: measured 'in air under ambient sunlight during clear sky conditions'; Processing 'normalized using labsphere spectralon'."
+    }
   },
   {
     "id": "dd94f09c-1794-44f4-82e9-a7ca707a1ec0",
-    "name": "HyspIRI Airborne Campaign Leaf and Canopy Spectra"
+    "name": "HyspIRI Airborne Campaign Leaf and Canopy Spectra",
+    "inclusion": "full",
+    "reason": "Identity-bearing leaf/canopy reflectance and transmittance of ~35-48 materials (crops, trees, soils, NPV) with per-spectrum common names. The transmittance spectra are ordinary unit-scale leaf transmittance (NIR median 0.37; 90th percentile < 0.52 for all 358), not a different quantity or scale: their extreme values (-1,369 to 496) sit at the detector edges (<450 nm, >2300 nm) and in the water bands where transmitted signal is ~0 and the ratio is noise; those bands are masked as NaN. One transmittance spectrum is a failed measurement and is dropped. Per-spectrum 'Measurement Units' = 'Ratio' is authoritative for the unit scale. 30 spectra repeat an earlier spectrum's datapoints exactly (22 with identical metadata, 8 pairs uploaded under two different sample names/dates); duplicates are collapsed on datapoints, keeping the lowest-ranked id and listing the others in duplicate_ids. Soil and NPV spectra carry the Common Name of the crop or stand they were measured in, so they are named from their target type ('soil', 'npv', 'litter') instead. 75 citrus and grape spectra have no Common Name; their 'USDA Symbol' field holds a common name instead of a symbol ('Grape', 'Orange', 'MandarinOrange'), which names them ('grape', 'orange', 'mandarin orange') instead of their spectrum labels or target type; such a value is kept as extra.source_plant_code, not extra.usda_symbol.",
+    "available_spectra": 2415,
+    "drop_spectra": {
+      "5f5f65ebd338eaf7d1f61b77": "Failed transmittance measurement (incense cedar): NIR transmittance ~0.0001 (leaf NIR transmittance is ~0.2-0.5), 492 of 2,151 bands outside [0, 1]."
+    },
+    "units_field": "Measurement Units",
+    "units_divisors": {
+      "Ratio": 1
+    },
+    "identity": {
+      "target_names": {
+        "Ground / soil": "soil",
+        "Ground": "soil",
+        "NPV / soil": "npv / soil",
+        "NPV": "npv",
+        "NPV / litter": "litter"
+      },
+      "fallback_name_fields": [
+        "USDA Symbol"
+      ],
+      "material_name_map": {
+        "Grape": "grape",
+        "Orange": "orange",
+        "MandarinOrange": "mandarin orange"
+      }
+    },
+    "setup": {
+      "default": {
+        "instrument_type": "field_spectrometer"
+      },
+      "field": "Acquisition_Method",
+      "field_map": {
+        "LC": {
+          "geometry": "biconical",
+          "light_source": "lamp",
+          "foreoptic": "leaf clip",
+          "acquisition_method": "contact"
+        },
+        "IS": {
+          "geometry": "directional_hemispherical",
+          "light_source": "lamp",
+          "foreoptic": "integrating sphere",
+          "acquisition_method": "contact"
+        },
+        "PG": {
+          "geometry": "hemispherical_conical",
+          "light_source": "sun",
+          "foreoptic": "pistol grip (bare fiber, 22 deg)",
+          "acquisition_method": "proximal"
+        },
+        "4deg": {
+          "geometry": "hemispherical_conical",
+          "light_source": "sun",
+          "foreoptic": "4 degree foreoptic",
+          "acquisition_method": "proximal"
+        },
+        "10deg": {
+          "geometry": "hemispherical_conical",
+          "light_source": "sun",
+          "foreoptic": "10 degree foreoptic",
+          "acquisition_method": "proximal"
+        }
+      },
+      "instrument_field": "Instrument",
+      "instrument_map": {
+        "ASD_FS3": {
+          "instrument": "ASD FieldSpec 3"
+        },
+        "ASD_FS4": {
+          "instrument": "ASD FieldSpec 4"
+        },
+        "SpecEvo_PSM3500": {
+          "instrument": "Spectral Evolution PSM-3500"
+        }
+      },
+      "evidence": "Per-spectrum Acquisition_Method: 'LC' (leaf clip with its lamp) -> biconical; 'IS' (ASD integrating sphere; reflectance and transmittance) -> directional_hemispherical; 'PG' (pistol grip, bare fibre 22 deg), '4deg' and '10deg' (foreoptics) are the package's outdoor sun-lit setups (Light Source 'sun', Venue 'outdoor') -> hemispherical_conical. Per-spectrum 'Instrument' (ASD_FS3, ASD_FS4, SpecEvo_PSM3500) names the spectrometer."
+    }
   },
   {
     "id": "2074ef11-d43c-4cb9-bf2b-19d4fc57dc4e",
-    "name": "NGEE Arctic 2017 Canopy Spectral Reflectance"
+    "name": "NGEE Arctic 2017 Canopy Spectral Reflectance",
+    "inclusion": "full",
+    "reason": "Arctic canopy reflectance (plus road/gravel and one water target). Per-spectrum identity is mostly weak: Common Name/Latin name is present for 32 spectra (used as the name), Target Type is 'Vegetation' for 479 of 511 and Dominant_Species is -9999 for 467. Unnamed vegetation spectra are named 'arctic tundra canopy'; Dominant_Species USDA codes, where given, become keywords; road/gravel maps to man_made and water to water. The per-spectrum Spectra_Units 'Percent_Reflectance_0_100' is authoritative for the 0-100 scale. Values beyond the masking window occur only as noise in the atmospheric water-absorption bands and at the detector edges and are masked as bad bands (not a different source scale). Three groups (8 rows) repeat identical datapoints under different species (e.g. arctic sweet coltsfoot, stone bramble, wideleaf polargrass and water sedge with different LMA and C:N). Each group is one canopy measurement (same Spectra_Name and UTC time) linked to the trait samples harvested inside its field of view, so one copy is kept, named 'arctic tundra canopy', with the species as keywords, the linked SampleIDs in extra and no sample_id of its own. Every other spectrum's SampleID is its sample_id; USDA symbols go to extra.usda_symbol.",
+    "available_spectra": 511,
+    "units_field": "Spectra_Units",
+    "units_divisors": {
+      "Percent_Reflectance_0_100": 100
+    },
+    "identity": {
+      "fallback_name_fields": [
+        "Target Type"
+      ],
+      "material_name_map": {
+        "Vegetation": "arctic tundra canopy",
+        "Road/gravel": "road/gravel",
+        "Water": "water"
+      },
+      "material_name": "arctic tundra canopy",
+      "keywords": [
+        "tundra",
+        "arctic"
+      ],
+      "keyword_fields": [
+        "Dominant_Species"
+      ],
+      "category": "vegetation"
+    },
+    "reference": "spectralon",
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "SVC HR-1024i",
+        "instrument_type": "field_spectrometer",
+        "foreoptic": "8 degree lens",
+        "acquisition_method": "proximal",
+        "light_source": "sun"
+      },
+      "evidence": "Package metadata: SVC HR-1024i (serial 2041) with an 8 degree lens (Foreoptic Field of View '8 degrees'), Light Source 'sun', outdoor, handheld; every spectrum comes from Seward_2017_Canopy_Spectral_Reflectance.csv (510 with per-spectrum Foreoptic '8deg', plus one without per-spectrum metadata whose SampleID NGEEArctic_Teller_Plot01_Lichen_8deg_Refl names the same 8 degree setup). Per-spectrum White_Reference_Standard '99AA04-0715-2212-SRT-99-100' is a Labsphere Spectralon target. The package description's leaf-clip measurements are not part of this upload."
+    },
+    "conflicting_duplicates": {
+      "action": "keep_one",
+      "material_name": "arctic tundra canopy",
+      "link_field": "SampleID"
+    }
   },
   {
     "id": "20988266-b57b-4899-a410-b3c4e5daa646",
-    "name": "Fresh and Dry Plant Tissue Spectra"
+    "name": "Fresh and Dry Plant Tissue Spectra",
+    "inclusion": "full",
+    "reason": "Elvidge dry/fresh plant-material library: 74 named samples (per-spectrum 'Sample Name', e.g. 'Loblolly Pine Lignin', 'Pinyon Pine (Grey Bark)') with the full binomial in 'Latin Species' where applicable. Category from Target Type: green leaves are vegetation, other plant tissues (wood, bark, dry/senesced leaves, cones, stems) are npv, purified plant compounds are organic_compound, sap is other.",
+    "available_spectra": 75,
+    "identity": {
+      "material_name_field": "Sample Name",
+      "keyword_fields": [
+        "Latin Species",
+        "Sample Type",
+        "Sample category"
+      ],
+      "category_map": {
+        "green leaf": "vegetation",
+        "yellow leaf": "npv",
+        "grey leaf": "npv",
+        "brown leaf": "npv",
+        "senesced leaf": "npv",
+        "decayed leaf": "npv",
+        "black needle": "npv",
+        "brown needle": "npv",
+        "brown wood": "npv",
+        "grey wood": "npv",
+        "grey bark": "npv",
+        "brown bark": "npv",
+        "red bark": "npv",
+        "tan bark": "npv",
+        "brown flower": "npv",
+        "yellow stem": "npv",
+        "grey stem": "npv",
+        "pericarp": "npv",
+        "grey cone": "npv",
+        "brown cone": "npv",
+        "seed capsule": "npv",
+        "purified powder": "organic_compound",
+        "sap": "other"
+      }
+    },
+    "setup": {
+      "default": {
+        "geometry": "directional_hemispherical",
+        "instrument": "Beckman UV-5240 spectrophotometer",
+        "instrument_type": "laboratory_spectrometer",
+        "foreoptic": "integrating sphere"
+      },
+      "evidence": "Package metadata: Foreoptic Type and Sample Platform 'integrating sphere', Light Source 'lamp', laboratory, Beckman UV-5240 spectrophotometer; description: 'Measurements were made using a Beckman UV-5240 Spectrophotometer and integrating sphere'."
+    }
   },
   {
     "id": "7433af7d-fbbd-4617-8df4-4d892f0d4357",
-    "name": "Leaf level spectra and LMA for a set of trees, forbs, vines and grasses collected in Madison, WI"
+    "name": "Leaf level spectra and LMA for a set of trees, forbs, vines and grasses collected in Madison, WI",
+    "inclusion": "sample",
+    "reason": "43,054 replicate leaf spectra of 10,105 leaves (3, 4 or 6 replicates per leaf id; 17,086 rows are exact within-leaf copies of another replicate) whose only per-spectrum identity is functional_type (tree/forb/vine/grass); no species. A deterministic 200-leaf sample (one replicate spectrum per leaf id) stratified by functional type keeps the functional-type coverage without flooding the library with anonymous replicates. Material is named by functional type. 1,324 rows of lt_psr_spectra.csv (730 after collapsing within-leaf copies) are about 100 times darker than every other spectrum (90th-percentile level below 0.016 against a dataset median of 0.47, with nothing between 0.016 and 0.05): copies already divided by 100. They are dropped by the darkness check before sampling, so a dark copy is never a leaf's sampled replicate.",
+    "available_spectra": 43054,
+    "sampling": {
+      "stratify_by": "functional_type",
+      "max_total": 200,
+      "min_per_stratum": 10,
+      "one_per": "id"
+    },
+    "identity": {
+      "material_name_field": "functional_type",
+      "material_name_template": "{} leaf",
+      "keywords": [
+        "leaf"
+      ],
+      "keyword_fields": [
+        "functional_type"
+      ]
+    },
+    "carry_fields": [
+      "functional_type",
+      "id",
+      "lma_g_m2"
+    ],
+    "setup": {
+      "default": {
+        "geometry": "biconical",
+        "instrument_type": "field_spectrometer"
+      },
+      "resources": {
+        "^lt_asd_": {
+          "instrument": "ASD FieldSpec 3"
+        },
+        "^lt_psr_": {
+          "instrument": "Spectral Evolution PSR 3500+"
+        },
+        "^lt_svc_": {
+          "instrument": "SVC HR-1024i"
+        }
+      },
+      "evidence": "Package metadata: Acquisition Method 'contact', Foreoptic Type 'leaf clip', Light Source 'lamp', Measurement Venue 'laboratory'. Three spectrometers; the instrument follows the resource file (lt_asd_spectra.csv ASD FieldSpec 3, lt_psr_spectra.csv Spectral Evolution PSR 3500+, lt_svc_spectra.csv SVC HR-1024i)."
+    }
   },
   {
     "id": "e7459b49-06d3-4e1d-beaa-cab0e012cc23",
-    "name": "2009 to 2016 Cedar Creek Enemy Removal Experiment Canopy Reflectance (MSR)"
+    "name": "2009 to 2016 Cedar Creek Enemy Removal Experiment Canopy Reflectance (MSR)",
+    "inclusion": "exclude",
+    "reason": "25,414 plot-level canopy reflectance time-series spectra whose per-spectrum metadata (ANG, Day, Experiment, IRR, Month, PLOT, TIME, Treatment, Year) carries no material identity at all. Not downloaded or ingested.",
+    "available_spectra": 25414
   },
   {
     "id": "b02e3e78-006c-4eed-a3d6-bfd593d15708",
-    "name": "Multiscale Mapping of Species Diversity Under Changed Land-use Imaging Spectroscopy"
+    "name": "Multiscale Mapping of Species Diversity Under Changed Land-use Imaging Spectroscopy",
+    "inclusion": "sample",
+    "reason": "22,889 airborne AisaFenix canopy pixels; the only identity is the per-pixel 'Tree Species' class (mostly genus level, e.g. Acacia). Tree Species becomes the material name and a keyword, and at most 25 pixels per class are kept (deterministic sample). Pixels without a Tree Species are not eligible. Adjacent pixels frequently repeat identical spectra (2,327 in the raw data, an upsampling artefact); duplicates are collapsed on datapoints before sampling. Class labels: 'Zizphus' -> 'Ziziphus', 'Cypress' -> 'Cupressus' (merged with the Cupressus class), 'Crop' -> 'crop canopy'. The codes 'Ficus_p', 'FicusC', 'FicusS' and 'Citrus_p' are not explained in the package metadata or description (which defers to Table 3 of the linked paper) and are kept as-is. One all-zero no-data pixel spectrum, repeated under 14 classes, is dropped as constant fill.",
+    "available_spectra": 22889,
+    "sampling": {
+      "stratify_by": "Tree Species",
+      "max_per_stratum": 25
+    },
+    "identity": {
+      "material_name_field": "Tree Species",
+      "material_name_map": {
+        "Zizphus": "Ziziphus",
+        "Crop": "crop canopy",
+        "Cypress": "Cupressus"
+      },
+      "keywords": [
+        "canopy"
+      ],
+      "keyword_fields": [
+        "Tree Species"
+      ]
+    },
+    "carry_fields": [
+      "Site",
+      "Lat",
+      "Lon",
+      "Tree AOI"
+    ],
+    "setup": {
+      "default": {
+        "geometry": "unknown",
+        "instrument": "Specim AisaFENIX",
+        "instrument_type": "imaging_spectrometer"
+      },
+      "evidence": "Airborne AisaFENIX image pixels (Acquisition Method 'pixel', Sample Platform 'airplane') delivered as reflectance (Measurement Quantity 'reflectance', Measurement Units '%'). The package defers atmospheric correction and BRDF handling to the associated paper (Processing Information Details and Foreoptic Specifications: 'see associated paper' / 'see linked resources'), so no illumination/viewing geometry is asserted."
+    }
   },
   {
     "id": "5617da17-c925-49fb-b395-45a51291bd2d",
-    "name": "Fresh Leaf Spectra to Estimate LMA over NEON domains in eastern United States"
+    "name": "Fresh Leaf Spectra to Estimate LMA over NEON domains in eastern United States",
+    "inclusion": "full",
+    "reason": "Identity-bearing fresh-leaf reflectance across NEON domains with per-spectrum Latin genus/species and common names. 1,187 spectra lack a species name: 667 carry only a USDA PLANTS symbol (e.g. CAGL, POGR) or a genus label ('Malus sp.') and keep it as their name and a keyword - only one symbol (Salix) is resolvable from other spectra in the dataset and codes are deliberately not mapped to botanical names without an authoritative checklist; the other 520 have no symbol and are named by Functional_type (broadleaf/forb/grass).",
+    "available_spectra": 6312,
+    "identity": {
+      "fallback_name_fields": [
+        "USDA Symbol",
+        "Functional_type"
+      ],
+      "keyword_fields": [
+        "Functional_type",
+        "USDA Symbol"
+      ]
+    },
+    "carry_fields": [
+      "Domain",
+      "Functional_type",
+      "LMA"
+    ],
+    "setup": {
+      "default": {
+        "geometry": "biconical",
+        "instrument_type": "field_spectrometer"
+      },
+      "resources": {
+        "^NEON2017_ASD_": {
+          "instrument": "ASD FieldSpec 3"
+        },
+        "^NEON2017_PSR_": {
+          "instrument": "Spectral Evolution PSR+"
+        }
+      },
+      "evidence": "Package metadata: Acquisition Method 'contact', Foreoptic Type 'contact probe', Light Source 'lamp'; description: ASD FieldSpec3 and/or Spectral Evolution PSR+ 'with their leaf contact probe'. The instrument follows the resource file (NEON2017_ASD_spectra.csv / NEON2017_PSR_spectra.csv)."
+    }
   },
   {
     "id": "93d2c85a-4b7b-4fb8-b54e-1a0c09f643c6",
-    "name": "Greater Cape Floristic Region Leaf Spectral Library"
+    "name": "Greater Cape Floristic Region Leaf Spectral Library",
+    "inclusion": "full",
+    "reason": "Identity-bearing leaf reflectance of hundreds of fynbos species (~245 species per 400 spectra) with per-spectrum Latin names.",
+    "available_spectra": 3205,
+    "setup": {
+      "default": {
+        "geometry": "biconical",
+        "instrument": "Ocean Optics USB-4000",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Foreoptic Type 'leaf clip', Light Source 'lamp', handheld Ocean Optics USB-4000."
+    }
   },
   {
     "id": "2a9d952a-5a28-47b3-9f85-8aa6e6808991",
-    "name": "Leaf and canopy level detection of Fusarium virguliforme (sudden death syndrome) in soybean"
+    "name": "Leaf and canopy level detection of Fusarium virguliforme (sudden death syndrome) in soybean",
+    "inclusion": "sample",
+    "reason": "5,851 soybean disease-trial replicates (leaf ASD and canopy Piccolo spectra) with no per-spectrum material identity beyond the trial design. A deterministic 200-spectrum sample stratified by inoculation status (per-spectrum field 'Inoculation': '0' control / '1' inoculated) is kept; all spectra are soybean (Glycine max) per the package description. The raw upload contains a 190-row fill-down group: leaf spectra dated 20160729, Plant 238, consecutive SampleNumbers (carried, so the rows differ in a label field), all with identical datapoints; every other plant is measured once per date, so the spectrum and the shared Plant/Inoculation labels are a fill-down copy error and the whole group is dropped before sampling.",
+    "available_spectra": 5851,
+    "sampling": {
+      "stratify_by": "Inoculation",
+      "max_total": 200,
+      "min_per_stratum": 10
+    },
+    "identity": {
+      "material_name": "soybean",
+      "keywords": [
+        "soybean",
+        "glycine max"
+      ]
+    },
+    "carry_fields": [
+      "Inoculation",
+      "Site",
+      "Date",
+      "Plant",
+      "Plot",
+      "SampleNumber",
+      "VarietyName",
+      "SeedTreatment"
+    ],
+    "setup": {
+      "default": {
+        "instrument_type": "field_spectrometer"
+      },
+      "resources": {
+        "^LeafLevel_ASD_": {
+          "geometry": "biconical",
+          "instrument": "ASD FieldSpec 4",
+          "light_source": "lamp",
+          "foreoptic": "leaf clip",
+          "acquisition_method": "contact"
+        },
+        "^CanopyLevel_Piccolo_": {
+          "geometry": "hemispherical_conical",
+          "instrument": "Piccolo Doppio (Ocean Optics Flame + NIRQuest)",
+          "light_source": "sun",
+          "foreoptic": "bare fiber (radiance) / cosine diffuser (irradiance)",
+          "acquisition_method": "proximal"
+        }
+      },
+      "evidence": "Description: leaf contact data with a handheld ASD (LeafLevel_ASD_Spectra_AllDates.csv; package Instrument Model 'field spec 4', Foreoptic 'leaf clip', Light Source Specifications 'tungsten halogen - asd leaf clip') -> biconical; canopy data with a tractor-mounted Piccolo Doppio under sun (CanopyLevel_Piccolo_Spectra_AllDates.csv; per-spectrum Spectrometer 'FLMS00114_NQ51B0141' = Ocean Optics Flame + NIRQuest; Foreoptic 'bare fiber' / 'cosine diffuser', Light Source 'sun') -> hemispherical_conical."
+    }
   },
   {
     "id": "ef2bc7ee-095c-4a76-bb5d-b16150667e14",
-    "name": "Hyperspectral data for measuring vegetation nutrients and canopy photosynthesis in a salt marsh"
+    "name": "Hyperspectral data for measuring vegetation nutrients and canopy photosynthesis in a salt marsh",
+    "inclusion": "full",
+    "reason": "Mixed package. Investigated 2026-10-29 via /api/package and spectra pages: 7,000 of the 7,147 'spectra' come from the resources All_PLSR_coefficients_to_model_{N,K,Na,P,NEE,Fe,FA}_*.csv (7 PLSR models x 1,000 bootstrap iterations; per-spectrum keys '', Iteration, Intercept; values span -7,240 to +6,672) - they are PLSR regression coefficients, which the package description says were 'added ... for their potential use to model the same variables with new reflectance data'. They are model output, not measurements, and are excluded. The remaining 147 spectra (resource Nutrients_CSHRS_Salt_Marsh_Categories.csv) are measured Ocean Optics Jaz canopy reflectance, 401-849 nm, unit scale (max 0.50) despite Measurement Units '%', for Spartina alterniflora (48), S. cynosuroides (49) and ecosystem-scale mixed plots (50); they are kept and named from SaltMarsh_Category. Two pairs of measured spectra repeat identical datapoints under different SaltMarsh_Category labels (S. cynosuroides vs ecosystem scale) and are dropped as conflicting duplicates.",
+    "available_spectra": 7147,
+    "exclude_resources": [
+      "^All_PLSR_coefficients_"
+    ],
+    "identity": {
+      "material_name_field": "SaltMarsh_Category",
+      "material_name_map": {
+        "S.alterniflora": "smooth cordgrass",
+        "S.cynosuroides": "big cordgrass",
+        "Ecosystem-Scale": "salt marsh canopy"
+      },
+      "keywords": [
+        "spartina",
+        "salt marsh",
+        "canopy"
+      ]
+    },
+    "carry_fields": [
+      "SaltMarsh_Category",
+      "StudySite",
+      "DATE"
+    ],
+    "setup": {
+      "default": {
+        "geometry": "hemispherical_conical",
+        "instrument": "Ocean Optics Jaz",
+        "instrument_type": "field_spectrometer"
+      },
+      "evidence": "Package metadata: Acquisition Method 'proximal', Foreoptic Type 'bare fiber' / 'cosine diffuser', Light Source 'sun', outdoor, Ocean Optics Jaz on a canopy reflectance sampler."
+    }
   }
 ]

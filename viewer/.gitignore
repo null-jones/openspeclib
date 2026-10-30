@@ -25,6 +25,7 @@ dist-ssr
 
 # Large data files (downloaded at build time)
 public/data/*.json
+public/data/*.csv
 public/data/*.parquet
 
 # DuckDB WASM files (copied from node_modules at build time)

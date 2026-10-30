@@ -1,0 +1,4 @@
+Spectra,Common Name,Latin Genus,Latin Species,Target Type,Measurement Quantity,Measurement Units,Instrument Manufacturer,Instrument Model,Processing Averaged,Sample Collection Date,Site,350,351,352,353,354,355
+leaf-001,Red maple,Acer,rubrum,Leaf,Reflectance,%,ASD,FieldSpec 3,yes,2019-07-04,Plot A,5.1,5.2,5.3,5.4,5.5,5.6
+leaf-002,,Quercus,alba,Leaf,Reflectance,%,ASD,FieldSpec 3,yes,2019/07/05,Plot B,6.1,-9999,6.3,NA,6.5,6.6
+soil-001,Sandy loam,,,Soil,Reflectance,%,ASD,FieldSpec 3,no,,Plot C,20.0,21.0,22.0,23.0,24.0,25.0

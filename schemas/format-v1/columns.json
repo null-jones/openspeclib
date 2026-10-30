@@ -1,0 +1,300 @@
+{
+  "format_version": "1.0.0",
+  "description": "Column definitions for OpenSpecLib Format v1 files. Normative. 'Monolithic' below means a collection from a single source, as opposed to an aggregated collection with contributing datasets. The `extension` field says where a column may appear: null = core column, required in every collection file; an extension name = allowed only when the footer declares that extension; \"*\" = allowed in any file without a declaration; \"index\" = index files only. `type` uses Apache Arrow type names; large and view variants of string and list are equivalent, and list child field names and child nullability are not significant (spec section 4). Index files contain every column except `wavelengths`, `values`, `bandpass_fwhm` and `values_stddev`, plus the index-only columns.",
+  "columns": [
+    {
+      "name": "id",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Globally unique spectrum identifier: `{collection}:{local_id}`. See rule F5 for the grammar.",
+      "non_empty": true
+    },
+    {
+      "name": "collection",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Collection identifier. MUST equal the footer `collection.id` on every row.",
+      "non_empty": true
+    },
+    {
+      "name": "original_id",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "The identifier the upstream source uses, unchanged.",
+      "non_empty": true
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Human-readable display label. SHOULD distinguish the spectrum from others with the same material_name.",
+      "non_empty": true
+    },
+    {
+      "name": "material_name",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Name of the measured material, e.g. 'Olivine', 'Quercus alba', 'water'.",
+      "non_empty": true
+    },
+    {
+      "name": "material_category",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Top-level material class. Vocabulary: `material_category`."
+    },
+    {
+      "name": "quantity",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Physical quantity of `values`. Vocabulary: `quantity`."
+    },
+    {
+      "name": "geometry",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Illumination/viewing geometry of the measurement. Vocabulary: `geometry`. Use 'unknown' when the source does not state it."
+    },
+    {
+      "name": "wavelength_unit",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "Unit of `wavelengths`, kept native to the source. Vocabulary: `wavelength_unit`."
+    },
+    {
+      "name": "wavelengths",
+      "type": "list<float64>",
+      "nullable": false,
+      "extension": null,
+      "description": "Spectral axis. Finite, strictly monotonic, at least 2 points."
+    },
+    {
+      "name": "values",
+      "type": "list<float32>",
+      "nullable": false,
+      "extension": null,
+      "description": "Measured values, same length as `wavelengths`. NaN marks a missing or invalid band. No other sentinel values."
+    },
+    {
+      "name": "wavelength_min_nm",
+      "type": "float64",
+      "nullable": false,
+      "extension": null,
+      "description": "Shortest wavelength of the axis, in nanometres, whatever `wavelength_unit` is. Lets readers filter across collections without unit conversion."
+    },
+    {
+      "name": "wavelength_max_nm",
+      "type": "float64",
+      "nullable": false,
+      "extension": null,
+      "description": "Longest wavelength of the axis, in nanometres."
+    },
+    {
+      "name": "license",
+      "type": "string",
+      "nullable": false,
+      "extension": null,
+      "description": "SPDX license expression for this spectrum (e.g. 'CC-BY-4.0', 'ODbL-1.0'), a 'LicenseRef-' identifier defined in the footer, or 'NOASSERTION'.",
+      "non_empty": true
+    },
+    {
+      "name": "dataset_id",
+      "type": "string",
+      "nullable": true,
+      "extension": null,
+      "description": "For aggregated collections: key into the footer `datasets` map (matching `^[A-Za-z0-9._~-]{1,200}$`). Null for monolithic collections; never an empty string.",
+      "non_empty": true
+    },
+    {
+      "name": "material_subcategory",
+      "type": "string",
+      "nullable": true,
+      "extension": "material",
+      "description": "Source-specific subclass, e.g. a mineral group or plant functional type."
+    },
+    {
+      "name": "material_formula",
+      "type": "string",
+      "nullable": true,
+      "extension": "material",
+      "description": "Chemical formula where applicable."
+    },
+    {
+      "name": "material_keywords",
+      "type": "list<string>",
+      "nullable": true,
+      "extension": "material",
+      "description": "Search terms."
+    },
+    {
+      "name": "sample_id",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Physical sample identifier at the source."
+    },
+    {
+      "name": "sample_description",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Free-text description of the sample."
+    },
+    {
+      "name": "sample_particle_size",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Particle size or size range as reported."
+    },
+    {
+      "name": "sample_origin",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Geographic or geological origin."
+    },
+    {
+      "name": "sample_owner",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Institution or person holding the sample."
+    },
+    {
+      "name": "sample_collection_date",
+      "type": "date32",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Date the sample was collected."
+    },
+    {
+      "name": "sample_preparation",
+      "type": "string",
+      "nullable": true,
+      "extension": "sample",
+      "description": "Sample preparation procedure."
+    },
+    {
+      "name": "measurement_instrument",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Instrument make and model."
+    },
+    {
+      "name": "measurement_instrument_type",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Instrument class. Recommended values: 'laboratory_spectrometer', 'field_spectrometer', 'ftir', 'imaging_spectrometer', 'goniometer' (spec section 5)."
+    },
+    {
+      "name": "measurement_laboratory",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Laboratory or facility."
+    },
+    {
+      "name": "measurement_date",
+      "type": "date32",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Date of measurement."
+    },
+    {
+      "name": "measurement_processing",
+      "type": "list<string>",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Processing applied to the values, in order, e.g. 'averaged', 'interpolated', 'resampled', 'simulated', 'absorbance_from_reflectance'."
+    },
+    {
+      "name": "measurement_light_source",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Illumination source, e.g. 'sun', 'lamp'."
+    },
+    {
+      "name": "measurement_venue",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Where the measurement was made, e.g. 'laboratory', 'field', 'greenhouse'."
+    },
+    {
+      "name": "measurement_acquisition_method",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "e.g. 'contact', 'integrating_sphere', 'imaging_spectrometer'."
+    },
+    {
+      "name": "measurement_foreoptic",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Fore-optic, e.g. 'leaf clip', 'contact probe', 'bare fibre'."
+    },
+    {
+      "name": "measurement_reference",
+      "type": "string",
+      "nullable": true,
+      "extension": "measurement",
+      "description": "Reference the values are relative to: 'spectralon', 'halon', 'gold', 'stainless_steel_mirror', 'blackbody', or 'absolute' for values corrected to absolute reflectance (spec section 5)."
+    },
+    {
+      "name": "bandpass_fwhm",
+      "type": "list<float32>",
+      "nullable": true,
+      "extension": "bandpass",
+      "description": "Full width at half maximum per band, in `wavelength_unit`. Same length as `wavelengths`."
+    },
+    {
+      "name": "values_stddev",
+      "type": "list<float32>",
+      "nullable": true,
+      "extension": "uncertainty",
+      "description": "Standard deviation of each value, same length as `values`, non-negative or NaN."
+    },
+    {
+      "name": "quality_notes",
+      "type": "string",
+      "nullable": true,
+      "extension": "quality",
+      "description": "Free-text quality notes."
+    },
+    {
+      "name": "extra",
+      "type": "string",
+      "nullable": true,
+      "extension": "*",
+      "description": "Optional on any file without a declaration: a JSON object of producer-specific metadata."
+    },
+    {
+      "name": "num_points",
+      "type": "int32",
+      "nullable": false,
+      "extension": "index",
+      "description": "Index files only: number of points in the spectrum."
+    },
+    {
+      "name": "file",
+      "type": "string",
+      "nullable": false,
+      "extension": "index",
+      "description": "Index files only: path (relative to the index file) or URL of the collection file holding the spectrum."
+    }
+  ]
+}

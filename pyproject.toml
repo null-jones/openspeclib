@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "openspeclib"
-version = "0.1.0"
-description = "Open-source amalgamated spectral library and processing toolkit"
+version = "0.2.0"
+description = "The OpenSpecLib Format for spectral libraries: reference reader, writer, validator, converters and the OpenSpecLib collection build"
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -27,11 +27,14 @@ dependencies = [
     "requests>=2.31",
     "tqdm>=4.65",
     "pyarrow>=15.0",
+    "numpy>=1.24",
     "huggingface_hub>=0.20",
 ]
 
 [project.optional-dependencies]
 build = []
+# Remote (http/https) reads in openspeclib.reader.
+remote = ["duckdb>=1.1"]
 dev = [
     "pytest>=8.0",
     "pytest-cov>=4.0",
@@ -41,6 +44,9 @@ dev = [
     "types-requests>=2.31",
     "types-jsonschema>=4.20",
     "types-tqdm>=4.65",
+    "duckdb>=1.1",
+    # Checks in tests/test_convert.py that exported ENVI libraries open in Spectral Python.
+    "spectral>=0.23",
 ]
 
 [project.scripts]
@@ -48,6 +54,32 @@ openspeclib = "openspeclib.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openspeclib"]
+
+# Ship the normative Format v1 schema files inside the package so the
+# conformance checker finds them in wheel installs; editable installs and
+# source checkouts read schemas/format-v1 directly
+# (see openspeclib.conformance.spec_dir).
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/format-v1" = "openspeclib/_schemas/format-v1"
+
+# Keep the sdist to the sources (by default hatch includes every file not
+# ignored by git, e.g. local build output). The wheel is built from the sdist,
+# so `schemas` must be here for the force-include above. Patterns are
+# gitignore-style: the leading "/" anchors them at the project root (an
+# unanchored "src" would also match viewer/src).
+[tool.hatch.build.targets.sdist]
+include = [
+    "/src",
+    "/schemas",
+    "/tests",
+    "/scripts",
+    "/docs",
+    "/README.md",
+    "/LICENSE",
+    "/pyproject.toml",
+    "/CHANGELOG.md",
+    "/CITATION.cff",
+]
 
 [tool.black]
 line-length = 100
@@ -103,6 +135,14 @@ ignore_missing_imports = true
 # ``Module ... does not explicitly export attribute`` errors fire on
 # routine pyarrow calls. We accept untyped calls inside this narrow
 # boundary; types are re-asserted as the data leaves these modules.
-module = ["openspeclib.storage", "openspeclib.loaders.ossl"]
+# The conformance checker and the validator also compute over pyarrow
+# arrays directly and need the same allowance.
+module = [
+    "openspeclib.storage",
+    "openspeclib.reader",
+    "openspeclib.loaders.ossl",
+    "openspeclib.conformance",
+    "openspeclib.validate",
+]
 disallow_untyped_calls = false
 warn_unused_ignores = false

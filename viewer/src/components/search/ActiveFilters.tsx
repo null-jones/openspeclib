@@ -1,13 +1,23 @@
 import { useAppContext } from '../../state/AppContext';
+import { DEFAULT_WAVELENGTH_RANGE } from '../../state/types';
+import { collectionLabel } from '../../constants/sources';
+import { vocabLabel } from '../../format/vocab';
 
 export default function ActiveFilters() {
   const { state, dispatch } = useAppContext();
+
+  const wavelengthFiltered =
+    state.wavelengthRange[0] !== DEFAULT_WAVELENGTH_RANGE[0] ||
+    state.wavelengthRange[1] !== DEFAULT_WAVELENGTH_RANGE[1];
 
   const hasFilters =
     state.searchText ||
     state.selectedCategories.length > 0 ||
     state.selectedSources.length > 0 ||
-    state.selectedTechnique ||
+    state.selectedQuantity ||
+    state.selectedGeometries.length > 0 ||
+    state.hideSimulated ||
+    wavelengthFiltered ||
     state.selectedSensor;
 
   if (!hasFilters) return null;
@@ -24,7 +34,7 @@ export default function ActiveFilters() {
       {state.selectedSources.map((s) => (
         <Tag
           key={`src-${s}`}
-          label={s}
+          label={collectionLabel(s, state.collections.get(s)?.footer.collection.title)}
           onRemove={() => dispatch({ type: 'TOGGLE_SOURCE', source: s })}
         />
       ))}
@@ -35,10 +45,24 @@ export default function ActiveFilters() {
           onRemove={() => dispatch({ type: 'TOGGLE_CATEGORY', category: c })}
         />
       ))}
-      {state.selectedTechnique && (
+      {state.selectedQuantity && (
         <Tag
-          label={state.selectedTechnique}
-          onRemove={() => dispatch({ type: 'SET_TECHNIQUE', technique: null })}
+          label={state.selectedQuantity}
+          onRemove={() => dispatch({ type: 'SET_QUANTITY', quantity: null })}
+        />
+      )}
+      {state.selectedGeometries.map((g) => (
+        <Tag key={`geo-${g}`} label={vocabLabel(g)} onRemove={() => dispatch({ type: 'TOGGLE_GEOMETRY', geometry: g })} />
+      ))}
+      {state.hideSimulated && (
+        <Tag label="no simulated" onRemove={() => dispatch({ type: 'SET_HIDE_SIMULATED', hide: false })} />
+      )}
+      {wavelengthFiltered && (
+        <Tag
+          label={`${state.wavelengthRange[0]}–${state.wavelengthRange[1]} μm`}
+          onRemove={() =>
+            dispatch({ type: 'SET_WAVELENGTH_RANGE', range: DEFAULT_WAVELENGTH_RANGE })
+          }
         />
       )}
       {state.selectedSensor && (
@@ -47,6 +71,12 @@ export default function ActiveFilters() {
           onRemove={() => dispatch({ type: 'SET_SENSOR', sensor: null })}
         />
       )}
+      <button
+        onClick={() => dispatch({ type: 'CLEAR_FILTERS' })}
+        className="text-xs text-gray-400 hover:text-red-500 underline decoration-dotted"
+      >
+        Clear all
+      </button>
     </div>
   );
 }

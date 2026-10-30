@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
+import { useDialog } from '../common/useDialog';
 import { useAppContext } from '../../state/AppContext';
 import { OPENSPECLIB_VERSION } from '../../constants/urls';
 import { InfoModal } from './InfoModal';
+import type { AppView } from '../../state/types';
 
 /** Inline header logo — openspeclib wordmark + spectral trace. */
 function Logo() {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="10 8 350 105" className="h-10" aria-label="OpenSpecLib">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="10 8 350 105" className="h-8 md:h-10 flex-shrink-0" aria-label="OpenSpecLib">
       <defs>
         <linearGradient id="spec" x1="0%" y1="0%" x2="100%" y2="0%">
           <stop offset="0%" stopColor="#818CF8" />
@@ -48,15 +50,21 @@ function Logo() {
 }
 
 function HelpModal({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useDialog(ref, onClose);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
       <div
+        ref={ref}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="help-title"
         className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-gray-900">Quick Guide</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <h2 id="help-title" className="text-lg font-semibold text-gray-900">Quick Guide</h2>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-700" aria-label="Close">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -70,7 +78,9 @@ function HelpModal({ onClose }: { onClose: () => void }) {
               <li>Filter by category to narrow results</li>
               <li>Select a sensor to filter for compatible spectra and enable downsampling</li>
               <li>Click table rows to add spectra to your library</li>
-              <li>Export your library as CSV or ENVI format</li>
+              <li>Filter by quantity and measurement geometry; hide simulated spectra if you only want measurements</li>
+              <li>Export your library as CSV or ENVI format, with licences and citations included</li>
+              <li>Open your own OpenSpecLib Format file ("Open a collection") to explore it next to the OpenSpecLib data</li>
             </ul>
           </div>
 
@@ -89,26 +99,64 @@ function HelpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+const VIEWS: ReadonlyArray<{ id: AppView; label: string }> = [
+  { id: 'explore', label: 'Explore' },
+  { id: 'format', label: 'Format' },
+];
+
 export default function Header() {
-  const { state } = useAppContext();
+  const { state, dispatch } = useAppContext();
   const [showInfo, setShowInfo] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const closeHelp = useCallback(() => setShowHelp(false), []);
+  const closeInfo = useCallback(() => setShowInfo(false), []);
 
   return (
     <>
-      <header className="bg-slate-900 px-5 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <header className="bg-slate-900 px-3 md:px-5 py-2 flex items-center justify-between gap-2 min-w-0">
+        <div className="flex items-center gap-2 md:gap-4 min-w-0">
+          <h1 className="sr-only">OpenSpecLib Viewer</h1>
           <Logo />
-          <div className="border-l border-slate-700 pl-4 flex items-center gap-3">
-            <span className="text-sm font-medium text-slate-300">Viewer</span>
-            <span className="text-[10px] text-slate-600 bg-slate-800 px-1.5 py-0.5 rounded font-mono">
+          <nav className="flex items-center gap-1" aria-label="Main">
+            {VIEWS.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => dispatch({ type: 'SET_VIEW', view: v.id })}
+                aria-current={state.view === v.id ? 'page' : undefined}
+                className={
+                  'px-2 md:px-3 py-1.5 text-sm font-medium rounded-md transition-colors ' +
+                  (state.view === v.id
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60')
+                }
+              >
+                {v.label}
+              </button>
+            ))}
+          </nav>
+          <div className="border-l border-slate-700 pl-4 hidden lg:flex items-center gap-3">
+            <span className="text-sm font-medium text-slate-300">Data release</span>
+            <span
+              className="text-[10px] text-slate-400 bg-slate-800 px-1.5 py-0.5 rounded font-mono"
+              title={`The OpenSpecLib data release this viewer shows (v${OPENSPECLIB_VERSION})`}
+            >
               v{OPENSPECLIB_VERSION}
             </span>
             <span className="text-xs text-slate-500 flex items-center gap-1.5">
-              {state.catalogLoaded
-                ? `${state.resultCount.toLocaleString()} spectra`
-                : 'Loading catalog...'}
-              {state.duckdbReady ? (
+              {state.indexError && !state.dataLoaded
+                ? 'Index failed to load'
+                : state.dataLoaded
+                  ? `${state.records.length.toLocaleString()} spectra`
+                  : 'Loading index…'}
+              {state.duckdbError ? (
+                <span
+                  className="inline-flex items-center gap-1 text-red-400"
+                  title={`Query engine failed to start: ${state.duckdbError}. Search, plots and the file checker are unavailable.`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                  Query engine failed
+                </span>
+              ) : state.duckdbReady ? (
                 <span className="inline-flex items-center gap-1 text-emerald-400" title="DuckDB ready">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
                   Ready
@@ -125,31 +173,34 @@ export default function Header() {
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 md:gap-4 flex-shrink-0">
           <button
             onClick={() => setShowHelp(true)}
             className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
             title="Quick guide"
+            aria-label="Help"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            Help
+            <span className="hidden sm:inline">Help</span>
           </button>
           <button
             onClick={() => setShowInfo(true)}
             className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
             title="About this project"
+            aria-label="About"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            About
+            <span className="hidden sm:inline">About</span>
           </button>
           <a
             href="https://github.com/null-jones/openspeclib"
+            aria-label="GitHub"
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
@@ -157,12 +208,12 @@ export default function Header() {
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
               <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" />
             </svg>
-            GitHub
+            <span className="hidden sm:inline">GitHub</span>
           </a>
         </div>
       </header>
-      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
-      {showInfo && <InfoModal onClose={() => setShowInfo(false)} />}
+      {showHelp && <HelpModal onClose={closeHelp} />}
+      {showInfo && <InfoModal onClose={closeInfo} />}
     </>
   );
 }

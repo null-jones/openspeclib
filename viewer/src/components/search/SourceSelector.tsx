@@ -1,36 +1,28 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { useAppContext } from '../../state/AppContext';
-
-/** Human-readable labels for source library identifiers. */
-const SOURCE_LABELS: Record<string, string> = {
-  usgs_splib07: 'USGS Spectral Library v7',
-  ecostress: 'ECOSTRESS',
-  relab: 'RELAB',
-  asu_tes: 'ASU TES',
-  bishop: 'Bishop',
-  ecosis: 'EcoSIS',
-};
-
-const SOURCE_DESCRIPTIONS: Record<string, string> = {
-  usgs_splib07: 'Minerals, rocks, soils, vegetation, water, man-made',
-  ecostress: 'Minerals, rocks, soils, vegetation, man-made, meteorites',
-  relab: 'Minerals, meteorites, lunar samples',
-  asu_tes: 'Rock-forming minerals (thermal IR)',
-  bishop: 'Carbonates, hydrated minerals, phyllosilicates',
-  ecosis: 'Vegetation, canopy, soil, water, urban materials',
-};
+import { collectionLabel } from '../../constants/sources';
 
 interface SourceInfo {
   id: string;
   label: string;
   description: string;
   count: number;
+  opened: boolean;
 }
 
 export default function SourceSelector() {
   const { state, dispatch } = useAppContext();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  /** Escape closes the list (and only the list, not a drawer around it) and returns focus. */
+  const onKeyDown = (e: ReactKeyboardEvent) => {
+    if (e.key !== 'Escape' || !open) return;
+    e.stopPropagation();
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -42,21 +34,26 @@ export default function SourceSelector() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
-  // Derive available sources and counts from catalog records
+  // Collections and their spectrum counts, from the loaded search rows.
   const sources: SourceInfo[] = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const r of state.catalogRecords) {
-      counts.set(r.source.library, (counts.get(r.source.library) ?? 0) + 1);
+    for (const r of state.records) {
+      counts.set(r.collection, (counts.get(r.collection) ?? 0) + 1);
     }
     return [...counts.entries()]
       .sort((a, b) => b[1] - a[1])
-      .map(([id, count]) => ({
-        id,
-        label: SOURCE_LABELS[id] ?? id,
-        description: SOURCE_DESCRIPTIONS[id] ?? '',
-        count,
-      }));
-  }, [state.catalogRecords]);
+      .map(([id, count]) => {
+        const meta = state.collections.get(id);
+        const kind = meta ? state.sources.get(meta.sourceKey)?.kind : undefined;
+        return {
+          id,
+          label: collectionLabel(id, meta?.footer.collection.title),
+          description: meta?.footer.collection.publisher ?? '',
+          count,
+          opened: kind !== undefined && kind !== 'release',
+        };
+      });
+  }, [state.records, state.collections, state.sources]);
 
   const selected = state.selectedSources;
   const allSelected = selected.length === 0;
@@ -75,21 +72,26 @@ export default function SourceSelector() {
     : sources.filter((s) => selected.includes(s.id)).reduce((s, src) => s + src.count, 0);
 
   const triggerLabel = allSelected
-    ? `All sources (${sources.length})`
+    ? `All collections (${sources.length})`
     : selected.length === 1
-      ? SOURCE_LABELS[selected[0]] ?? selected[0]
-      : `${selected.length} sources`;
+      ? sources.find((x) => x.id === selected[0])?.label ?? selected[0]
+      : `${selected.length} collections`;
 
   if (sources.length <= 1) return null;
 
   return (
-    <div ref={containerRef} className="relative">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
-        Source Library
-      </label>
+    <div ref={containerRef} className="relative" onKeyDown={onKeyDown}>
+      <h3 id="filter-collections" className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+        Collections
+      </h3>
 
       <button
+        ref={triggerRef}
+        type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
+        aria-controls="collections-list"
+        aria-describedby="filter-collections"
         className={`mt-1.5 w-full flex items-center justify-between px-3 py-2 text-sm bg-white
                     border rounded-lg transition-colors text-left
                     ${open ? 'border-indigo-400 ring-2 ring-indigo-500/20' : 'border-gray-200 hover:border-gray-300'}`}
@@ -104,22 +106,29 @@ export default function SourceSelector() {
         </div>
         <svg
           className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
       {open && (
-        <div className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg
-                        max-h-[360px] overflow-y-auto">
+        <div
+          id="collections-list"
+          role="group"
+          aria-labelledby="filter-collections"
+          className="absolute z-30 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg
+                        max-h-[360px] overflow-y-auto"
+        >
           {/* All sources option */}
           <button
+            type="button"
             onClick={handleSelectAll}
+            aria-pressed={allSelected}
             className={`w-full text-left px-3 py-2 text-sm transition-colors border-b border-gray-100
                         ${allSelected ? 'bg-gray-50 text-indigo-600 font-medium' : 'text-gray-500 hover:bg-gray-50'}`}
           >
-            All sources ({sources.reduce((s, src) => s + src.count, 0).toLocaleString()} spectra)
+            All collections ({sources.reduce((s, src) => s + src.count, 0).toLocaleString()} spectra)
           </button>
 
           {/* Individual sources */}
@@ -128,7 +137,9 @@ export default function SourceSelector() {
             return (
               <button
                 key={src.id}
+                type="button"
                 onClick={() => handleToggle(src.id)}
+                aria-pressed={isActive}
                 className={`w-full text-left px-3 py-2 transition-colors ${
                   isActive
                     ? 'bg-indigo-50 border-l-2 border-indigo-500'
@@ -148,13 +159,18 @@ export default function SourceSelector() {
                     <span className={`text-sm font-medium ${isActive ? 'text-indigo-700' : 'text-gray-800'}`}>
                       {src.label}
                     </span>
+                    {src.opened && (
+                      <span className="px-1 py-px text-[9px] rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        opened
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0 tabular-nums">
+                  <span className="text-[10px] text-gray-500 flex-shrink-0 tabular-nums">
                     {src.count.toLocaleString()}
                   </span>
                 </div>
                 {src.description && (
-                  <p className="mt-0.5 ml-5.5 text-[10px] text-gray-400 pl-[22px]">{src.description}</p>
+                  <p className="mt-0.5 ml-5.5 text-[10px] text-gray-500 pl-[22px]">{src.description}</p>
                 )}
               </button>
             );

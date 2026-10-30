@@ -1,0 +1,23 @@
+ENVI
+; Hand-written test library: big-endian int16 reflectance scaled by 10000,
+; with mixed-case keys, multi-line lists, a bad band and an ignore value.
+Description = {Test library,
+  written by hand}
+SAMPLES = 6
+lines   = 3
+bands = 1
+header offset = 0
+File Type = ENVI Spectral Library
+data type = 2
+interleave = bsq
+Byte Order = 1
+Data Ignore Value = -1
+Reflectance Scale Factor = 10000
+Wavelength Units = Micrometers
+wavelength = {0.40, 0.50,
+ 0.60, 0.70,
+ 0.80, 0.90}
+fwhm = {0.01, 0.01, 0.01, 0.01, 0.01, 0.01}
+bbl = {1, 1, 1, 1, 1, 0}
+spectra names = {Quartz GDS31,
+  Kaolinite CM9, Calcite}

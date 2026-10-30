@@ -32,7 +32,7 @@ function SensorOption({
           </span>
         )}
       </div>
-      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-400">
+      <div className="mt-0.5 flex items-center gap-2 text-[10px] text-gray-500">
         <span>{sensor.bands.length} bands</span>
         <span className="text-gray-300">&middot;</span>
         <span>{(sensor.wavelengthMin * 1000).toFixed(0)}–{(sensor.wavelengthMax * 1000).toFixed(0)} nm</span>
@@ -67,9 +67,9 @@ export default function SensorSelector() {
 
   return (
     <div ref={containerRef} className="relative">
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <h3 id="filter-sensor" className="text-xs font-medium text-gray-600 uppercase tracking-wider">
         Satellite Sensor
-      </label>
+      </h3>
 
       {/* Trigger button */}
       <button

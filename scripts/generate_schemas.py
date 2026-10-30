@@ -1,96 +1,101 @@
 #!/usr/bin/env python3
-"""Generate schema files from Pydantic models and the canonical Arrow schema.
+"""Check that the code agrees with the normative OpenSpecLib Format v1 schema files.
 
-Catalog and spectrum-record schemas are emitted as JSON Schema (Draft 2020-12)
-derived from the Pydantic models. Library chunk files are stored as Parquet,
-so the chunk-level schema is emitted as a JSON dump of the canonical Arrow
-schema (column names, types, nullability, and footer metadata keys) — useful
-as documentation for downstream consumers without forcing them to open a
-Parquet file.
+The Format v1 machine-readable specification in ``schemas/format-v1/``
+(``columns.json``, ``vocabularies.json``, ``footer.schema.json``,
+``rules.json``) is maintained by hand and is normative, so nothing is
+generated from the code any more: the v0 outputs (``catalog.schema.json``,
+``spectrum.schema.json``, ``licenses.schema.json``,
+``library.arrow.schema.json``) are obsolete. This script instead verifies that
+the writer's column definitions (``openspeclib.storage``) and the model
+vocabularies (``openspeclib.models``) match those files, and exits non-zero on
+any drift. It never writes to ``schemas/format-v1/``.
 
 Run from the repository root:
     python scripts/generate_schemas.py
 """
 
 import json
+import sys
 from pathlib import Path
-from typing import Any
 
-import pyarrow as pa
+from openspeclib import models, storage
 
-from openspeclib.models import CatalogFile, LicensesFile, SpectrumRecord
-from openspeclib.storage import (
-    _META_SOURCE,
-    _META_VERSION,
-    ARROW_SCHEMA,
-    WAVELENGTHS_ARROW_SCHEMA,
-)
+SPEC_DIR = Path(__file__).resolve().parent.parent / "schemas" / "format-v1"
 
-SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
-
-
-def write_json_schema(model_cls: type, filename: str) -> None:
-    schema = model_cls.model_json_schema()
-    path = SCHEMAS_DIR / filename
-    path.write_text(json.dumps(schema, indent=2) + "\n")
-    print(f"  {path.relative_to(SCHEMAS_DIR.parent)}")
+_TYPE_NAMES = {
+    "string": "string",
+    "double": "float64",
+    "float": "float32",
+    "int32": "int32",
+    "date32[day]": "date32",
+}
 
 
-def _arrow_type_to_dict(arrow_type: pa.DataType) -> dict[str, Any]:
-    """Render a pyarrow DataType as a JSON-serialisable dict."""
-    if pa.types.is_list(arrow_type):
-        return {
-            "kind": "list",
-            "value_type": _arrow_type_to_dict(arrow_type.value_type),
-        }
-    return {"kind": "primitive", "type": str(arrow_type)}
+def _type_name(arrow_type) -> str:
+    """Render an Arrow type the way columns.json names it."""
+    text = str(arrow_type)
+    if text.startswith("list<"):
+        return f"list<{_type_name(arrow_type.value_type)}>"
+    return _TYPE_NAMES.get(text, text)
 
 
-def _columns_payload(schema: pa.Schema) -> list[dict[str, Any]]:
-    """Render an Arrow schema's fields as JSON-serialisable column metadata."""
-    return [
-        {
-            "name": field.name,
-            "type": _arrow_type_to_dict(field.type),
-            "nullable": field.nullable,
-        }
-        for field in schema
-    ]
+def check_columns() -> list[str]:
+    spec = json.loads((SPEC_DIR / "columns.json").read_text())["columns"]
+    errors = []
+    spec_by_name = {c["name"]: c for c in spec}
+    code_by_name = storage.COLUMNS
+    for name in sorted(set(spec_by_name) ^ set(code_by_name)):
+        where = "columns.json" if name in spec_by_name else "openspeclib.storage"
+        errors.append(f"column {name!r} only in {where}")
+    for name, col in spec_by_name.items():
+        code = code_by_name.get(name)
+        if code is None:
+            continue
+        if _type_name(code.type) != col["type"]:
+            errors.append(f"{name}: type {_type_name(code.type)} != {col['type']}")
+        if code.nullable != col["nullable"]:
+            errors.append(f"{name}: nullable {code.nullable} != {col['nullable']}")
+        if code.extension != col["extension"]:
+            errors.append(f"{name}: extension {code.extension!r} != {col['extension']!r}")
+    spec_order = [c["name"] for c in spec if c["extension"] not in ("index",)]
+    code_order = [c.name for c in storage.COLLECTION_COLUMNS]
+    if spec_order != code_order:
+        errors.append("collection column order differs from columns.json")
+    return errors
 
 
-def write_arrow_schema(filename: str) -> None:
-    """Dump per-source and wavelengths Arrow schemas as JSON documentation."""
-    payload = {
-        "format": "parquet",
-        "compression": "zstd",
-        "write_statistics": True,
-        "spectra_files": {
-            "footer_metadata_keys": [
-                _META_VERSION.decode("utf-8"),
-                _META_SOURCE.decode("utf-8"),
-            ],
-            "columns": _columns_payload(ARROW_SCHEMA),
-        },
-        "wavelengths_file": {
-            "filename": "wavelengths.parquet",
-            "footer_metadata_keys": [_META_VERSION.decode("utf-8")],
-            "columns": _columns_payload(WAVELENGTHS_ARROW_SCHEMA),
-        },
+def check_vocabularies() -> list[str]:
+    vocab = json.loads((SPEC_DIR / "vocabularies.json").read_text())
+    pairs = {
+        "quantity": models.Quantity,
+        "geometry": models.Geometry,
+        "wavelength_unit": models.WavelengthUnit,
+        "material_category": models.MaterialCategory,
+        "inclusion": models.Inclusion,
     }
-    path = SCHEMAS_DIR / filename
-    path.write_text(json.dumps(payload, indent=2) + "\n")
-    print(f"  {path.relative_to(SCHEMAS_DIR.parent)}")
+    errors = []
+    for key, enum in pairs.items():
+        spec_values = set(vocab[key])
+        code_values = {m.value for m in enum}
+        if spec_values != code_values:
+            errors.append(
+                f"vocabulary {key}: spec {sorted(spec_values)} != code {sorted(code_values)}"
+            )
+    if list(vocab["extension"]) != list(storage.EXTENSIONS):
+        errors.append(f"extensions: spec {list(vocab['extension'])} != code {storage.EXTENSIONS}")
+    return errors
 
 
-def main() -> None:
-    SCHEMAS_DIR.mkdir(exist_ok=True)
-    print("Generating schemas:")
-    write_json_schema(SpectrumRecord, "spectrum.schema.json")
-    write_json_schema(CatalogFile, "catalog.schema.json")
-    write_json_schema(LicensesFile, "licenses.schema.json")
-    write_arrow_schema("library.arrow.schema.json")
-    print("Done.")
+def main() -> int:
+    errors = check_columns() + check_vocabularies()
+    for error in errors:
+        print(f"DRIFT: {error}")
+    if errors:
+        return 1
+    print(f"Code matches {SPEC_DIR.relative_to(SPEC_DIR.parent.parent)}.")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

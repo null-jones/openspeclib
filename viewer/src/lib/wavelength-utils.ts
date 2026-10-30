@@ -1,46 +1,46 @@
-import type { WavelengthUnit } from '../types/catalog';
+/** `nm`, `um` or `cm-1` (vocabulary `wavelength_unit`). */
+export type WavelengthUnit = string;
 
-/** Convert wavelengths to micrometers. Returns a new sorted ascending array. */
-export function toMicrometers(
-  wavelengths: number[],
-  unit: WavelengthUnit,
-): number[] {
+/**
+ * Whether a spectral value marks a missing band. Format v1 uses NaN only;
+ * the magnitude test also guards against sentinels in files that do not
+ * conform (spec rule F9).
+ */
+export function isMissingValue(v: number): boolean {
+  return !Number.isFinite(v) || Math.abs(v) > 1e10;
+}
+
+/** One wavelength in µm: nm / 1000, µm as is, and 10⁴ / ν for wavenumbers in cm⁻¹. */
+function toMicrometer(w: number, unit: WavelengthUnit): number {
   switch (unit) {
-    case 'um':
-      return wavelengths;
     case 'nm':
-      return wavelengths.map((w) => w / 1000);
-    case 'cm-1': {
-      // cm-1 → um: λ(μm) = 10000 / ν(cm⁻¹). Reverses order.
-      const converted = wavelengths.map((w) => 10000 / w);
-      converted.reverse();
-      return converted;
-    }
+      return w / 1000;
+    case 'cm-1':
+      return 10_000 / w;
+    default:
+      return w;
   }
 }
 
-/** Also reorder the values array to match reversed wavenumber conversion. */
+/**
+ * Convert an axis to µm and sort the (wavelength, value) pairs ascending.
+ * Axes may be stored descending (common for wavenumbers, and for some
+ * wavelength axes, e.g. 1,772 ECOSTRESS spectra); every consumer here
+ * (plot, downsampling, ENVI interpolation) expects ascending wavelengths.
+ */
 export function toMicrometersWithValues(
   wavelengths: number[],
   values: number[],
   unit: WavelengthUnit,
 ): { wavelengths: number[]; values: number[] } {
-  if (unit === 'cm-1') {
-    const converted = wavelengths.map((w) => 10000 / w);
-    const reordered = [...values].reverse();
-    converted.reverse();
-    return { wavelengths: converted, values: reordered };
+  const n = Math.min(wavelengths.length, values.length);
+  const um = new Array<number>(n);
+  let ascending = true;
+  for (let i = 0; i < n; i++) {
+    um[i] = toMicrometer(wavelengths[i], unit);
+    if (i > 0 && !(um[i] >= um[i - 1])) ascending = false;
   }
-  return { wavelengths: toMicrometers(wavelengths, unit), values };
-}
-
-export function unitLabel(unit: WavelengthUnit): string {
-  switch (unit) {
-    case 'um':
-      return 'Wavelength (μm)';
-    case 'nm':
-      return 'Wavelength (nm)';
-    case 'cm-1':
-      return 'Wavenumber (cm⁻¹)';
-  }
+  if (ascending) return { wavelengths: um, values: values.slice(0, n) };
+  const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => um[a] - um[b]);
+  return { wavelengths: order.map((i) => um[i]), values: order.map((i) => values[i]) };
 }

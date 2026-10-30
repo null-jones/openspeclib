@@ -1,0 +1,9 @@
+{
+  "collection": {
+    "id": "test_lab",
+    "title": "Test lab library",
+    "license": "CC-BY-4.0",
+    "citation": "Test Lab (2026). Test spectral library.",
+    "inclusion": "complete"
+  }
+}

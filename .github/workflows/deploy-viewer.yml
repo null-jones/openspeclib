@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - 'viewer/**'
+      # Bundled into the viewer through the @spec and @allowlist aliases.
+      - 'schemas/format-v1/**'
+      - 'src/openspeclib/validation_allowlist.json'
       - '.github/workflows/deploy-viewer.yml'
   workflow_dispatch:
 
@@ -33,15 +36,25 @@ jobs:
         working-directory: viewer
         run: npm ci
 
+      # The release the viewer serves is set in one place: OPENSPECLIB_VERSION
+      # in viewer/src/constants/urls.ts.
+      - name: Read data release version
+        id: release
+        run: |
+          version=$(sed -nE "s/^export const OPENSPECLIB_VERSION = '([^']+)';/\1/p" viewer/src/constants/urls.ts)
+          if [ -z "$version" ]; then echo "::error::OPENSPECLIB_VERSION not found"; exit 1; fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+
       - name: Download release data
         working-directory: viewer/public/data
         run: |
-          gh release download v0.0.6 \
+          gh release download "${{ steps.release.outputs.tag }}" \
             --repo null-jones/openspeclib \
-            --pattern "*.json" \
             --pattern "*.parquet" \
+            --pattern "id-migration.csv" \
             --pattern "checksums.txt" \
-            --skip-existing
+            --clobber
+          sha256sum --check --ignore-missing --strict checksums.txt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

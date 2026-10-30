@@ -1,0 +1,1214 @@
+{
+  "f10_extent_mismatch.parquet": {
+    "description": "wavelength_max_nm 701 for an axis ending at 700 nm.",
+    "conformant": false,
+    "failed": [
+      "F10"
+    ],
+    "warned": []
+  },
+  "f10_infinite_stored.parquet": {
+    "description": "wavelength_max_nm is +inf: never equal to a finite extent.",
+    "conformant": false,
+    "failed": [
+      "F10"
+    ],
+    "warned": []
+  },
+  "f10_microns_not_converted.parquet": {
+    "description": "um axis with its extent stored in um instead of nm.",
+    "conformant": false,
+    "failed": [
+      "F10"
+    ],
+    "warned": []
+  },
+  "f10_min_mismatch.parquet": {
+    "description": "Only wavelength_min_nm is wrong.",
+    "conformant": false,
+    "failed": [
+      "F10"
+    ],
+    "warned": []
+  },
+  "f10_wavenumber_not_converted.parquet": {
+    "description": "cm-1 axis with its extent stored in cm-1 instead of nm.",
+    "conformant": false,
+    "failed": [
+      "F10"
+    ],
+    "warned": []
+  },
+  "f11_bad_syntax.parquet": {
+    "description": "Licence expression ends with an operator.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_dataset_licence.parquet": {
+    "description": "datasets.lab_a.license is not an expression.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_deep_nesting.parquet": {
+    "description": "200 nested parentheses.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_documentref.parquet": {
+    "description": "DocumentRef- references are not allowed.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_double_space.parquet": {
+    "description": "Two spaces between tokens.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_empty.parquet": {
+    "description": "Empty licence string: F2 (non_empty) only; F11 covers non-empty values.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f11_footer_licence.parquet": {
+    "description": "collection.license 'CC BY 4.0' is not an SPDX expression.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_invalid_character.parquet": {
+    "description": "A `/` inside an identifier.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_lowercase_licenseref.parquet": {
+    "description": "Lower-case licenseref- prefix.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_lowercase_noassertion.parquet": {
+    "description": "`noassertion`: the SPDX special value is case-sensitive.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_lowercase_operator.parquet": {
+    "description": "Lower-case `or` is not an SPDX operator.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_nbsp.parquet": {
+    "description": "A non-breaking space.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_noassertion_compound.parquet": {
+    "description": "NOASSERTION inside a compound expression.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_tab.parquet": {
+    "description": "A tab between tokens.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_trailing_space.parquet": {
+    "description": "Trailing space.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_undefined_ref.parquet": {
+    "description": "Row uses a LicenseRef not defined in collection.license_refs.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f11_with_noassertion.parquet": {
+    "description": "WITH NOASSERTION.",
+    "conformant": false,
+    "failed": [
+      "F11"
+    ],
+    "warned": []
+  },
+  "f12_spectra_included_float.parquet": {
+    "description": "spectra_included 99.0 (a JSON Schema integer) for 3 rows.",
+    "conformant": false,
+    "failed": [
+      "F12"
+    ],
+    "warned": []
+  },
+  "f12_spectra_included_mismatch.parquet": {
+    "description": "lab_a says spectra_included 5, but 3 rows use it.",
+    "conformant": false,
+    "failed": [
+      "F12"
+    ],
+    "warned": []
+  },
+  "f12_unknown_dataset.parquet": {
+    "description": "dataset_id 'lab_z' is not a footer datasets key.",
+    "conformant": false,
+    "failed": [
+      "F12"
+    ],
+    "warned": []
+  },
+  "f12_unused_dataset.parquet": {
+    "description": "datasets key lab_b has no rows.",
+    "conformant": false,
+    "failed": [
+      "F12"
+    ],
+    "warned": []
+  },
+  "f13_bandpass_length.parquet": {
+    "description": "bandpass_fwhm shorter than wavelengths.",
+    "conformant": false,
+    "failed": [
+      "F13"
+    ],
+    "warned": []
+  },
+  "f13_infinite_element.parquet": {
+    "description": "Infinite bandpass.",
+    "conformant": false,
+    "failed": [
+      "F13"
+    ],
+    "warned": []
+  },
+  "f13_negative_stddev.parquet": {
+    "description": "Negative standard deviation.",
+    "conformant": false,
+    "failed": [
+      "F13"
+    ],
+    "warned": []
+  },
+  "f13_null_element.parquet": {
+    "description": "Null stddev element.",
+    "conformant": false,
+    "failed": [
+      "F13"
+    ],
+    "warned": []
+  },
+  "f1_bad_created.parquet": {
+    "description": "`created` is not an RFC 3339 timestamp with a time zone.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_bad_dataset_key.parquet": {
+    "description": "datasets key 'lab a' does not match ^[A-Za-z0-9._~-]{1,200}$.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_both_footer_keys.parquet": {
+    "description": "File carries both `openspeclib` and `openspeclib_index`.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_corrupt_extension_page.parquet": {
+    "description": "A corrupt page in an extension column: every column is decoded (F1).",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_corrupt_page.parquet": {
+    "description": "The `values` data page header is overwritten: F1 (not valid Parquet); the row-level rules are skipped.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_created_bad_offset.parquet": {
+    "description": "`created` has the offset +12:60.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_dataset_subset_without_notes.parquet": {
+    "description": "datasets.lab_a.inclusion is subset without inclusion_notes.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_doi_trailing_newline.parquet": {
+    "description": "collection.doi ends with a newline: patterns match the whole value.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_empty_footer_licence.parquet": {
+    "description": "collection.license is empty: the footer schema (F1), not F11.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_f3_f7_unknowns_in_1_0.parquet": {
+    "description": "The same file declaring 1.0.0: the unknown member, extension, column and geometry are errors.",
+    "conformant": false,
+    "failed": [
+      "F1",
+      "F3",
+      "F7"
+    ],
+    "warned": []
+  },
+  "f1_f3_no_footer_unknown_column.parquet": {
+    "description": "No footer (F1); F3 still checks column names.",
+    "conformant": false,
+    "failed": [
+      "F1",
+      "F3"
+    ],
+    "warned": []
+  },
+  "f1_footer_nan.parquet": {
+    "description": "A 1.1.0 footer with an unknown member whose value is NaN: NaN is not valid JSON, so the footer fails F1 even where unknown members are only warnings.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_format_version_leading_zero.parquet": {
+    "description": "format_version 1.01.0: semantic versions have no leading zeros (stricter than the footer schema pattern).",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_impossible_created.parquet": {
+    "description": "`created` has the right shape but month 13.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_invalid_json.parquet": {
+    "description": "Footer value is not valid JSON.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_invalid_utf8_column_name.parquet": {
+    "description": "A column name is not UTF-8: the schema cannot be read, so F1 (not valid Parquet); every other rule is skipped.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_missing_footer.parquet": {
+    "description": "No `openspeclib` footer key (F3, F5, F6, F11, F12 are skipped).",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_not_parquet.parquet": {
+    "description": "Not a Parquet file (attributed to F1; other rules skipped).",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_subset_without_notes.parquet": {
+    "description": "collection.inclusion is subset without inclusion_notes.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_unknown_footer_field.parquet": {
+    "description": "Footer has a property the schema does not allow.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f1_unsupported_major.parquet": {
+    "description": "format_version 2.0.0.",
+    "conformant": false,
+    "failed": [
+      "F1"
+    ],
+    "warned": []
+  },
+  "f2_empty_name.parquet": {
+    "description": "`name` is an empty string on one row.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_invalid_utf8_name.parquet": {
+    "description": "`name` holds bytes that are not UTF-8 (F2 for a core column).",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_missing_column.parquet": {
+    "description": "Core column original_id is missing.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_null_keyword_element.parquet": {
+    "description": "material_keywords holds a null element.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_null_value.parquet": {
+    "description": "Non-nullable core column `name` holds a null.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_null_values_list.parquet": {
+    "description": "`values` is null on one row.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_whitespace_name.parquet": {
+    "description": "`name` is whitespace-only on one row.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f2_wrong_type.parquet": {
+    "description": "original_id is int64 instead of string.",
+    "conformant": false,
+    "failed": [
+      "F2"
+    ],
+    "warned": []
+  },
+  "f3_duplicate_x_column.parquet": {
+    "description": "The x_ column `x_note` appears twice.",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_future_minor_nested_column.parquet": {
+    "description": "format_version 1.1.0 with an unknown struct column: unknown columns are warnings, but every column must be flat (F3).",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_index_column.parquet": {
+    "description": "Index-only column num_points in a collection file.",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_invalid_utf8_x_column.parquet": {
+    "description": "An x_ string column holds bytes that are not UTF-8 (F3 for x_ columns).",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_nested_x_column.parquet": {
+    "description": "x_meta is a struct: x_ columns must be flat.",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_undeclared_extension.parquet": {
+    "description": "material_formula present but `material` not declared.",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f3_unknown_column.parquet": {
+    "description": "Column `notes` is neither defined, `extra` nor `x_`-prefixed.",
+    "conformant": false,
+    "failed": [
+      "F3"
+    ],
+    "warned": []
+  },
+  "f4_extension_type.parquet": {
+    "description": "sample_collection_date is string instead of date32.",
+    "conformant": false,
+    "failed": [
+      "F4"
+    ],
+    "warned": []
+  },
+  "f4_extra_array.parquet": {
+    "description": "extra is a JSON array.",
+    "conformant": false,
+    "failed": [
+      "F4"
+    ],
+    "warned": []
+  },
+  "f4_extra_invalid_json.parquet": {
+    "description": "extra is not valid JSON.",
+    "conformant": false,
+    "failed": [
+      "F4"
+    ],
+    "warned": []
+  },
+  "f4_extra_string.parquet": {
+    "description": "extra is a JSON string.",
+    "conformant": false,
+    "failed": [
+      "F4"
+    ],
+    "warned": []
+  },
+  "f4_invalid_utf8_extra.parquet": {
+    "description": "`extra` holds bytes that are not UTF-8: one F4 finding, not two.",
+    "conformant": false,
+    "failed": [
+      "F4"
+    ],
+    "warned": []
+  },
+  "f5_bad_local_id.parquet": {
+    "description": "Local id contains a space.",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f5_duplicate_id.parquet": {
+    "description": "Two rows share an id.",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f5_empty_local_id.parquet": {
+    "description": "Empty local id (`conformance_minimal:`).",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f5_id_too_long.parquet": {
+    "description": "Local id of 201 characters (limit 200).",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f5_unanchored_prefix.parquet": {
+    "description": "Id `zzconformance_minimal:a1` merely contains the prefix.",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f5_wrong_prefix.parquet": {
+    "description": "Id prefix is not the footer collection.id.",
+    "conformant": false,
+    "failed": [
+      "F5"
+    ],
+    "warned": []
+  },
+  "f6_collection_mismatch.parquet": {
+    "description": "`collection` differs from the footer collection.id on one row.",
+    "conformant": false,
+    "failed": [
+      "F6"
+    ],
+    "warned": []
+  },
+  "f7_bad_quantity.parquet": {
+    "description": "quantity 'radiance' is not in the vocabulary.",
+    "conformant": false,
+    "failed": [
+      "F7"
+    ],
+    "warned": []
+  },
+  "f7_vocabulary_case.parquet": {
+    "description": "geometry 'Biconical': vocabularies are case-sensitive.",
+    "conformant": false,
+    "failed": [
+      "F7"
+    ],
+    "warned": []
+  },
+  "f8_infinite_wavelength.parquet": {
+    "description": "+inf in axis.",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_nan_wavelength.parquet": {
+    "description": "NaN in the axis (extent of the finite values is correct).",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_negative_wavelength.parquet": {
+    "description": "Negative wavelength (extent still matches).",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_not_monotonic.parquet": {
+    "description": "Axis goes up, down and up again (extent still correct).",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_null_wavelength.parquet": {
+    "description": "Null element in axis.",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_repeated_wavelength.parquet": {
+    "description": "Axis repeats a value: not strictly monotonic.",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_single_point.parquet": {
+    "description": "Axis with one element.",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f8_zero_wavelength.parquet": {
+    "description": "Axis starts at 0 nm: wavelengths must be > 0.",
+    "conformant": false,
+    "failed": [
+      "F8"
+    ],
+    "warned": []
+  },
+  "f9_infinity.parquet": {
+    "description": "Infinite value.",
+    "conformant": false,
+    "failed": [
+      "F9"
+    ],
+    "warned": []
+  },
+  "f9_just_above_sentinel.parquet": {
+    "description": "A value of 1.0001e10 is a sentinel.",
+    "conformant": false,
+    "failed": [
+      "F9"
+    ],
+    "warned": []
+  },
+  "f9_length_mismatch.parquet": {
+    "description": "`values` shorter than `wavelengths`.",
+    "conformant": false,
+    "failed": [
+      "F9"
+    ],
+    "warned": []
+  },
+  "f9_null_element.parquet": {
+    "description": "Null element inside `values`.",
+    "conformant": false,
+    "failed": [
+      "F9"
+    ],
+    "warned": []
+  },
+  "f9_sentinel.parquet": {
+    "description": "USGS-style sentinel -1.23e34 instead of NaN.",
+    "conformant": false,
+    "failed": [
+      "F9"
+    ],
+    "warned": []
+  },
+  "index_absolute_path.parquet": {
+    "description": "Absolute local path in `file`.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_bad_footer.parquet": {
+    "description": "No `generator`.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_both_keys.parquet": {
+    "description": "Index footer plus an `openspeclib` key; checked with check_index.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": [],
+    "check": "index"
+  },
+  "index_duplicate_future_column.parquet": {
+    "description": "A 1.0.0 index over a 1.1.0 collection carrying its spectral_index column twice: a column may appear only once.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_duplicate_id_across_files.parquet": {
+    "description": "conformance_minimal:a1 is in two listed files.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_duplicate_row.parquet": {
+    "description": "One collection row appears twice in the index.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_extension_value_for_lacking_file.parquet": {
+    "description": "material_formula is set on a valid_minimal row, but valid_minimal has no material_formula column (must be null).",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_extra_row.parquet": {
+    "description": "An index row has no matching collection row.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_file_listed_twice.parquet": {
+    "description": "valid_minimal is listed as both `valid_minimal.parquet` and `./\u2026`.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_file_url.parquet": {
+    "description": "A file: URL.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_future_minor.parquet": {
+    "description": "An index declaring 1.1.0 with its own unknown column and footer member: warnings (section 11).",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "I1"
+    ]
+  },
+  "index_future_minor_nested_column.parquet": {
+    "description": "An index declaring 1.1.0 with an unknown struct column: every column must be flat.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_list_mismatch.parquet": {
+    "description": "material_keywords (a list column) differs on one row.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_metadata_mismatch.parquet": {
+    "description": "Footer metadata differs from the collection file's footer.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_missing_column.parquet": {
+    "description": "No num_points column.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_missing_extension_column.parquet": {
+    "description": "material_formula (present in valid_full) is not indexed.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_missing_file.parquet": {
+    "description": "Footer lists a file that does not exist.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_missing_footer.parquet": {
+    "description": "Footer `openspeclib_index` is an empty object.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_missing_row.parquet": {
+    "description": "A collection row is not in the index.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_nested_x_column.parquet": {
+    "description": "An x_ struct column in the index: x_ columns must be flat.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_null_typed_column.parquet": {
+    "description": "All-null dataset_id stored with the Arrow null type in the index.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "index_num_spectra_mismatch.parquet": {
+    "description": "num_spectra differs from the file's row count.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_of_nonconformant.parquet": {
+    "description": "I1 holds, but the indexed collection file fails F7, so the index does not conform.",
+    "conformant": false,
+    "failed": [],
+    "warned": []
+  },
+  "index_over_future_minor.parquet": {
+    "description": "A 1.0.0 index listing a 1.1.0 collection: the embedded metadata is judged by its own format_version, so its unknown extension and member are warnings.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "I1"
+    ]
+  },
+  "index_over_future_minor_with_column.parquet": {
+    "description": "As index_over_future_minor, also carrying the collection's spectral_index column (unknown in 1.0.0): a warning, and its values are compared.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "I1"
+    ]
+  },
+  "index_over_null_typed_collection.parquet": {
+    "description": "The collection stores dataset_id with the null type; the index as string.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "index_sha256_mismatch.parquet": {
+    "description": "sha256 does not match the file.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_shared_collection_id.parquet": {
+    "description": "Two listed files share the collection id conformance_minimal.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_unknown_column.parquet": {
+    "description": "Index has a column `notes` that is neither required nor `x_`.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_unknown_column_not_from_future_file.parquet": {
+    "description": "A 1.0.0 index lists a 1.1.0 collection but has a column `notes` that no listed file holds: an error (the 1.1.0 file excuses only its own columns).",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_unlisted_file.parquet": {
+    "description": "One row points at elsewhere.parquet, which the footer does not list.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_valid.parquet": {
+    "description": "Index over valid_minimal and valid_full: every non-array column, extension columns only valid_full has, `extra`, `x_custom`, num_points and file; sha256 for one entry.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "index_value_mismatch.parquet": {
+    "description": "material_name differs from the collection file on one row.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_wrong_num_points.parquet": {
+    "description": "num_points does not equal len(values).",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_wrong_type.parquet": {
+    "description": "num_points is int64 instead of int32.",
+    "conformant": false,
+    "failed": [
+      "I1"
+    ],
+    "warned": []
+  },
+  "index_x_column_differs.parquet": {
+    "description": "x_custom differs from the collection file: x_ columns are not compared.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "r1_no_id_statistics.parquet": {
+    "description": "No Parquet statistics for `id`.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R1"
+    ]
+  },
+  "r1_unsorted.parquet": {
+    "description": "Rows not sorted by id.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R1"
+    ]
+  },
+  "r2_large_row_group.parquet": {
+    "description": "One row group of 260 spectra.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R2"
+    ]
+  },
+  "r3_bandpass_no_bss.parquet": {
+    "description": "bandpass_fwhm without BYTE_STREAM_SPLIT.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R3"
+    ]
+  },
+  "r3_default_encoding.parquet": {
+    "description": "pyarrow defaults: dictionary encoding and snappy.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R3"
+    ]
+  },
+  "r3_dictionary.parquet": {
+    "description": "BYTE_STREAM_SPLIT and zstd, but one chunk records dictionary encoding.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R3"
+    ]
+  },
+  "r3_no_bss.parquet": {
+    "description": "zstd without dictionary, but no BYTE_STREAM_SPLIT.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R3"
+    ]
+  },
+  "r3_snappy.parquet": {
+    "description": "BYTE_STREAM_SPLIT without dictionary, but snappy.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R3"
+    ]
+  },
+  "r4_all_nan.parquet": {
+    "description": "One spectrum is entirely NaN.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R4"
+    ]
+  },
+  "r5_unknown_geometry.parquet": {
+    "description": "2 of 3 rows have geometry 'unknown' (R5 approximation: > 50 %).",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "R5"
+    ]
+  },
+  "valid_250_rows.parquet": {
+    "description": "One row group of exactly 250 spectra: no R2 warning.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_date64.parquet": {
+    "description": "sample_collection_date stored with the date64 hint: equals date32.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_descending_nm.parquet": {
+    "description": "A descending nm axis: min is the last element.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_dictionary_string.parquet": {
+    "description": "material_name stored as dictionary<int32, string>: still a string.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_empty.parquet": {
+    "description": "Zero rows: conformant, and exempt from R1.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_extra_object.parquet": {
+    "description": "extra is a JSON object.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_fixed_size_list.parquet": {
+    "description": "values and wavelengths stored as fixed_size_list[4]: still lists.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_full.parquet": {
+    "description": "Every extension column; aggregated collection with two datasets; NOASSERTION collection licence; LicenseRef row and dataset licences; compound SPDX expressions (AND/OR/WITH/+); descending cm-1 axis; NaN in values and stddev; `extra` and `x_custom` columns; wavelength_min_nm off by 2.5e-7 (within F10).",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_future_minor.parquet": {
+    "description": "format_version 1.1.0 with a new geometry value, a new column, a new extension and a new footer member: unknown to a 1.0 checker, so warnings, not errors.",
+    "conformant": true,
+    "failed": [],
+    "warned": [
+      "F1",
+      "F3",
+      "F7"
+    ]
+  },
+  "valid_large_types.parquet": {
+    "description": "large_string, string_view and large_list columns: equivalent to the plain types (spec section 4).",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_leap_second.parquet": {
+    "description": "`created` is the leap second 2016-12-31T23:59:60Z.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_minimal.parquet": {
+    "description": "Core columns only; nm and um axes; no extensions, no datasets.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_minimal_rest.parquet": {
+    "description": "The other two rows of valid_minimal (same collection id as the subset).",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_minimal_subset.parquet": {
+    "description": "A deliberate subset (one row) of valid_minimal, with inclusion_notes.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_no_arrow_schema.parquet": {
+    "description": "valid_full written without an ARROW:schema entry, as non-Arrow writers do: types come from the Parquet logical types alone.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_null_dataset_id.parquet": {
+    "description": "All-null dataset_id stored with the Arrow null type.",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  },
+  "valid_sentinel_limit.parquet": {
+    "description": "Values of exactly +-1e10 are allowed (the limit is > 1e10).",
+    "conformant": true,
+    "failed": [],
+    "warned": []
+  }
+}

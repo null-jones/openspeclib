@@ -1,180 +1,141 @@
-# Processing Pipeline
+# Processing pipeline
 
-## Overview
-
-The OpenSpecLib processing pipeline transforms spectral data from multiple heterogeneous source libraries into a unified, validated master library. The pipeline operates in four sequential stages: **download**, **ingest**, **combine**, and **validate**.
-
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Download   │────>│   Ingest    │────>│   Combine   │────>│  Validate   │
-│              │     │             │     │             │     │             │
-│ Fetch source │     │ Parse into  │     │ Merge into  │     │ Schema +    │
-│ archives     │     │ standard    │     │ master      │     │ semantic    │
-│              │     │ records     │     │ library     │     │ checks      │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-```
-
-Each stage is accessible via the `openspeclib` CLI.
-
-## Stage 1: Download
+This page describes how the OpenSpecLib collection is built from the source libraries: **download → ingest → combine → validate → release**. Each step is an `openspeclib` command. The release workflow (`.github/workflows/build-release.yml`) runs them in order; [publishing.md](publishing.md) covers the publishing steps after the build.
 
 ```bash
-openspeclib download --source {usgs,ecostress,relab,asu_tes,bishop} --target ./raw/{source}
+for source in usgs ecostress ecosis; do
+  openspeclib download --source "$source" --target "raw/$source"
+  openspeclib ingest --source "$source" --input "raw/$source" --output processed/
+done
+openspeclib combine --input processed/ --output release/
+openspeclib validate release/ --profile openspeclib --report release/validation-report.json
 ```
 
-Downloads and extracts the source library archive into the target directory. Each loader manages its own download logic, handling archive formats (ZIP, tar) and any required authentication.
+## 1. Download
 
-### Source Download Details
+```bash
+openspeclib download --source <source> --target raw/<source>
+```
 
-| Source | Format | Approximate Size | Notes |
+| `--source` | Collection id | Fetched from | Automatic |
 |---|---|---|---|
-| USGS Speclib 07 | ZIP archive of ASCII files | ~500 MB | Public, no authentication |
-| ECOSTRESS | ZIP archive of text files | ~200 MB | Public, from JPL |
-| RELAB | Text files (header + two-column data) | ~300 MB | Public, from Brown University |
-| ASU TES | Text files (header + two-column data) | ~50 MB | Public, from ASU |
-| Bishop | Text files (header + two-column data) | ~30 MB | Public, from SETI Institute |
+| `usgs` | `usgs_splib07` | Hugging Face mirror of the unmodified USGS ScienceBase archive | yes |
+| `ecostress` | `ecostress` | Hugging Face mirror of the JPL archive | yes |
+| `ecosis` | `ecosis` | EcoSIS API, one JSON bundle per curated package | yes |
+| `ossl` | `ossl` | Three compressed CSV tables on Google Cloud Storage | yes |
+| `relab` | `relab` | PDS Geosciences Node | no: place the files in the target directory |
+| `asu_tes` | `asu_tes` | ASU spectral library | no: place the files in the target directory |
+| `bishop` | `bishop` | SETI Institute | no: place the files in the target directory |
 
-## Stage 2: Ingest
+Downloads skip files that are already complete, so a re-run fetches only what is missing. The EcoSIS downloader retries rate limits and server errors, and never leaves a partial bundle; see [ecosis-curation.md](ecosis-curation.md#download).
 
-```bash
-openspeclib ingest --source {usgs,ecostress,relab,asu_tes,bishop} --input ./raw/{source} --output ./processed/
-```
-
-Each source library has a dedicated loader that parses native file formats into the unified `SpectrumRecord` data structure. Loaders implement the `BaseLoader` interface defined in `src/openspeclib/loaders/base.py`.
-
-The ingest stage writes one JSONL (JSON Lines) file per source to the output directory, where each line is a complete serialized `SpectrumRecord`.
-
-### USGS Speclib 07 Loader
-
-**Input format:** Single-column ASCII text files containing reflectance values. Wavelength axes are stored in separate shared files per spectrometer.
-
-**Processing steps:**
-1. Scan the directory tree for spectrum files matching the USGS naming convention (`s07*.txt`).
-2. Identify and cache wavelength/bandpass files for each spectrometer code.
-3. For each spectrum file:
-   - Read reflectance values from the single-column file.
-   - Map the parent directory name to a material category (e.g., `ChapterM_Minerals` to `mineral`).
-   - Parse the filename to extract material name and sample identifier.
-   - Detect bad bands using the sentinel value `-1.23e34`.
-   - Assemble the `SpectrumRecord` with matched wavelength data.
-
-### ECOSTRESS Loader
-
-**Input format:** Individual text files with a metadata header section followed by two-column (wavelength, value) spectral data.
-
-**Processing steps:**
-1. Locate all `.spectrum.txt` files (or `.txt` files) in the source directory.
-2. For each file:
-   - Parse the header section as key-value pairs until reaching numeric data.
-   - Extract metadata fields: Name, Class, SubClass, ParticleSize, SampleNo, Origin, Description, Measurement type, etc.
-   - Read the two-column data section into wavelength and value arrays.
-   - Map the ECOSTRESS Class field to the canonical material category.
-   - Determine the measurement technique from the Measurement or YUnits header field (reflectance for VIS/SWIR, emissivity for TIR).
-
-### RELAB Loader
-
-**Input format:** Individual text files with `#`-prefixed header lines containing key-value metadata, followed by two-column data (wavelength in micrometers, reflectance).
-
-**Processing steps:**
-1. Locate all `.txt` files in the source directory, excluding readme and index files.
-2. For each file:
-   - Parse `#`-prefixed header lines as key-value pairs (stripping the `#` prefix before extracting keys).
-   - Read the two-column data section into wavelength (micrometers) and reflectance value arrays.
-   - Classify the material category from the Sample Type and Name fields (mineral, meteorite, lunar, rock, soil).
-   - Extract sample metadata: sample ID, particle size, geographic origin, and measurement geometry.
-   - All spectra are recorded as bidirectional reflectance.
-
-### ASU TES Loader
-
-**Input format:** Individual text files with optional `#`- or `!`-prefixed header lines, followed by two-column data (wavenumber in cm-1, emissivity).
-
-**Processing steps:**
-1. Locate all `.txt`, `.asc`, and `.csv` files in the source directory.
-2. For each file:
-   - Parse header lines (stripping comment prefixes) as key-value pairs.
-   - Read two-column data into wavenumber and emissivity arrays.
-   - Detect the mineral group from the sample name (e.g., "quartz" maps to tectosilicate).
-   - Wavelength unit is wavenumbers (cm-1); measurement type is emissivity.
-   - All spectra are attributed to the ASU Thermal Emission Spectroscopy Laboratory.
-
-### Bishop Loader
-
-**Input format:** Individual text files with `#`-prefixed header lines containing key-value metadata, followed by two-column data (wavelength, reflectance).
-
-**Processing steps:**
-1. Locate all `.txt`, `.asc`, and `.csv` files in the source directory.
-2. For each file:
-   - Parse `#`-prefixed header lines as key-value pairs.
-   - Read two-column data into wavelength and reflectance value arrays.
-   - Infer wavelength unit from the data range (values > 100 are nanometers, otherwise micrometers).
-   - Classify the material category from the Type header, falling back to whole-word keyword matching in the sample name.
-   - All spectra are recorded as reflectance.
-
-## Stage 3: Combine
+## 2. Ingest
 
 ```bash
-openspeclib combine --input ./processed/ --output ./library/
+openspeclib ingest --source <source> --input raw/<source> --output processed/
 ```
 
-The combiner reads all JSONL files from the processed directory and constructs the master library:
+Each source has a loader in `src/openspeclib/loaders/` that implements `BaseLoader` and yields `SpectrumRecord` objects. Ingest writes two files:
 
-1. **Emit one Parquet file per source** at `spectra/{source}.parquet`. Records are buffered, sorted by `id`, and written in row groups of 250 spectra with Parquet column statistics enabled. The sort plus statistics let HTTP Range-request consumers (DuckDB, the viewer) prune row groups that don't cover a target id, fetching only a few hundred KB per `id IN (...)` lookup instead of scanning the whole file.
-2. **Deduplicate wavelength axes** into a shared `WavelengthRegistry` while writing each source. Each unique `(wavelength_unit, wavelengths)` pair is registered once and replaced by an `int32` `spectral_data.wavelength_grid_id` reference inside the per-source files. The registry is flushed at the end of combine to `spectra/wavelengths.parquet`.
-3. **Build the catalog index** — for each spectrum, create a catalog entry (metadata without spectral arrays) with a `chunk_file` reference (`spectra/{source}.parquet`).
-4. **Compute aggregate statistics** — total spectra, per-source counts, per-category counts.
-5. **Write output files** — `catalog.json` (JSON), per-source `.parquet` files plus `wavelengths.parquet` under `spectra/` (zstd-compressed, one row per spectrum), and `VERSION`.
+- `{collection}.jsonl`: one record per line;
+- `{collection}.collection.json`: the footer metadata (the `collection` object and, for aggregated collections, the `datasets`).
 
-File-level metadata (`openspeclib_version`, `source`) is written into the Parquet footer key-value metadata; the spectrum count is read from Parquet's native `num_rows`. See `schemas/library.parquet-schema.md` for the full column reference.
+Both are written as `.part` files and renamed only when the run succeeds. A loader may skip a file it cannot interpret, but it counts skips that would leave the collection incomplete in `fatal_error_count`. If that count is above zero, ingest deletes its output and exits 1. So does an EcoSIS ingest that is missing a curated, non-excluded package. Deleting the output includes the `{collection}.jsonl` and `{collection}.collection.json` of any previous run, so `combine` cannot pick up a stale collection; an ingest that finds no spectra at all does the same, but warns and exits 0. An ingest interrupted by an exception leaves a previous run's pair untouched.
 
-## Stage 4: Validate
+### Rules every loader follows
+
+- **Ids.** `id` is `{collection}:{local_id}`. The local id is the upstream id with characters outside `[A-Za-z0-9._~-]` replaced by `_` (`loaders.base.make_local_id`). `original_id` keeps the upstream id unchanged.
+- **Missing values** become NaN (`loaders.base.mask_invalid_values`): source sentinels, non-numeric values, and any finite value with magnitude above 1e10.
+- **Scale.** Reflectance, transmittance and emissivity are divided to fractions using the scale the source states. The divisor is recorded in `extra.source_reflectance_divisor`.
+- **Units.** Wavelengths stay in the source's unit.
+- **Axes.** Format v1 needs a strictly monotonic axis (rule F8). A source axis with overlapping detectors is sorted, with values moved along (`loaders.base.sort_by_wavelength`); `extra` records `bands_reordered_by_wavelength` and `source_band_order`. When two bands have the same wavelength one is kept (the first with a finite value, so a NaN band never displaces a measured one) and `extra` records `duplicate_wavelength_bands_dropped` and `duplicate_wavelength_band_count`.
+- **Geometry from evidence.** `geometry` is set only from something the source states: a header, a filename code backed by the source's documentation, or package metadata. The evidence is recorded with the rule (see below). Otherwise it is `unknown`.
+- **Generators.** Loaders yield records one at a time, so large sources need not fit in memory.
+
+### USGS Spectral Library Version 7 (`usgs_splib07`)
+
+- **Included:** the measured spectra of splib07a. The oversampled splib07b copies, the spectra convolved or resampled to other instruments, and the error-bar files are derived from the same measurements and are left out (`inclusion: subset`).
+- **Values:** single-column ASCII files; the wavelength and bandpass axes are in shared files per spectrometer. Values are already fractions. The deleted-channel marker −1.23e34 becomes NaN, and `extra.source_missing_band_count` records how many.
+- **Quantity:** from the filename's data-type token. `AREF`, `RREF` and `RTGC` are reflectance; `TRAN` is transmittance.
+- **Geometry:** `src/openspeclib/loaders/usgs_geometry.py` applies named rules based on the spectrometer code and, for the Beckman and ASD instruments, the spectrum's own description in the archive's `HTMLmetadata/` folder. The evidence is Kokaly et al. (2017), USGS Data Series 1035, which ships in the archive:
+  - Nicolet (`NIC4`): biconical (DS1035 p. 7).
+  - AVIRIS: hemispherical-conical (p. 7).
+  - ASD: biconical in the laboratory (lamp and fibre probe, p. 4); hemispherical-conical in the field under natural light (p. 7). Laboratory or field is read from the description, the chapter, or a powder or sieved size fraction in the title.
+  - Beckman: biconical for powders in a sample cup; bihemispherical for rock surfaces placed over the integrating-sphere port (p. 4).
+  - A spectrum measured with a field spectrometer and convolved to AVIRIS channels (its description says so) follows the field-spectrometer rules, not the AVIRIS one, and has `measurement_instrument_type` `field_spectrometer`.
+  - `unknown` when none of these establishes the setup, for `TRAN` spectra, and for computed spectra.
+  - A few named exceptions override these rules, each with the evidence quoted in `usgs_geometry.py`. One gives `hemispherical_conical` (a Beckman-coded spectrum that its description says is an average of field spectra); the others give `unknown`.
+  - The rule that fired is in `extra.geometry_rule` (for example `nicolet_bcrf`, `beckman_surface_over_port`, `asd_setup_not_stated`), so each value can be traced to its evidence.
+- **Processing flags:** `simulated` for spectra the description says were calculated or computed (computed mixtures); `interpolated` where the description says the original data were interpolated; `resampled` where it says the spectrum was convolved to another instrument's channels (`extra.resampled_to_channels_of` names the channel set); `scaled_to_reference_level` for Nicolet reflectance spectra.
+- **Names:** from the SPECPR record title on the first line of each data file (`Topaz Little_3_Mine_#41  BECKb AREF`). DS1035 describes it as "a short sample name and a unique sample identifier number/code", separated by a space; the filename writes that space as `_`, so it cannot show where the name ends. The first title word is `material_name` and the rest is `sample_id`: "Topaz" with sample id `Little_3_Mine_#41`, not "Topaz Little". The spectrum's HTMLmetadata page refines this. Its `TITLE` joins a name the record title splits ("Samarium Oxide"). Its `SAMPLE_ID` moves an id written onto the name into `sample_id` (`Vermillion_GDS779`) and supplies the id when the title has none (`1-2-3-Trimethylbenzene 85K` gets `SA-T73202`). Lower-case words between the name and that id belong to the name ("Iron oxide #4820"); when the id is not in the title, title words that `SAMPLE_ID` gives as material rather than id belong to the name (`BHVO-2F+7% Decane` with `SAMPLE_ID` `BHVO-2F, Decane SA-30550` is "BHVO-2F + 7% Decane" with sample id `SA-30550`). A supplier catalogue number written onto the name is the sample id (`Iron_Powder_SA-267953 <10 um` is "Iron Powder", `SA-267953_<10_um`). A measurement temperature goes to `extra.sample_temperature_k` rather than `sample_id` when it is a title word of its own (`85K`, `T~77K`) or is written onto a frost or grain-size descriptor (`MedFrost85K`, `fine fr86K`, `<75um85K`, whose descriptor stays in `sample_id`). A heating temperature (`Htd16hr 480K`) stays in `sample_id`, and so does a temperature glued to any other word. Names the USGS abbreviated to fit the 40-character title (DS1035 appendix 2) are kept as written.
+- **Category:** from the chapter directory. The Liquids chapter is split into `water` and `snow_ice`. Chapter S ("Soils and Mixtures", whose HTMLmetadata document almost every sample as a mixture) is classified per spectrum from the title and description, with the rule in `extra.category_rule`. Laboratory mixtures (`AMX` series, samples made from pure phases) and coatings or precipitates on a substrate are `mixture`. A rock named in the title, or a description that says the sample is or was taken from a rock, is `rock`. Sands and playa surfaces are `soil`. A title naming one mineral whose description says the sample is that mineral ("Weathered Pyrite from …") or phases of that one mineral group ("contains two alunite phases") is `mineral` (`chapter_s_single_mineral`). Anything else stays `mixture`. In the other chapters, computed mixtures (`computed_mixture`) and measured laboratory mixtures (`laboratory_mixture`: an `AMX` title token, or a description of a sample prepared by mixing, e.g. antigorite with dry grass in chapter V, basalt BHVO-2F with an organic compound in chapter O, montmorillonite with a solvent in chapter A) get `mixture`, and a title that names one rock and nothing else (the unmixed basalt BHVO-2F reference in chapter O) gets `rock` (`rock_in_title`). The rule is kept in `extra.category_rule` and the chapter's category in `extra.original_category`. The 0% member of a laboratory mixture series (every component after a `+` is 0%, e.g. `Vermiculite+0wt%amph._GDS327`, the pure vermiculite of the vermiculite + amphibole series) is not a mixture: it keeps its chapter's category, with `extra.category_rule` `zero_fraction_reference`.
+
+### ECOSTRESS (`ecostress`)
+
+- **Values and quantity:** every file states its quantity and scale in the `Y Units` header, for example `Reflectance (percent)`. The loader accepts one quantity followed by `(percent)`, `(percentage)` or `(%)`, tolerating the archive's misspellings, and divides by 100. The same header sets `quantity`. A file whose `Y Units` is missing or unrecognised is rejected, and ingest fails.
+- **Percent headers on fraction data:** some USGS Perkin-Elmer/Nicolet rock spectra say `percent` but hold fractions. A "percent" spectrum whose axis reaches below 2 µm but whose 90th-percentile level is 1.5 or less is taken to be fractions and not divided: no genuine percent VSWIR spectrum in the archive is that dark, while thermal-only spectra (dark meteorites near 1 %) are exempt. `extra` records `source_reflectance_divisor` 1, `declared_value_scale`, `value_scale_rule` and `source_value_level_p90`, and `quality_notes` says why.
+- **Category:** from `Type`, unless `Class` itself names a more specific category (`Soil` / `Lunar` is `lunar`; `Water` / `Snow`, `Ice` or `Frost` is `snow_ice`), in which case `extra.original_category` keeps the `Type` category. `Type` and `Class` are kept verbatim in `extra.source_type` and `extra.source_class`; `material_subcategory` is the `Subclass` (or the `Class` when there is no `Subclass` key).
+- **Geometry:** from the `Measurement` header, for reflectance only:
+  - "Hemispherical reflectance" and "Directional hemispherical reflectance": `directional_hemispherical` (integrating-sphere laboratory spectrometers).
+  - "Bidirectional reflectance": `biconical`. These are laboratory lamp-and-probe or FTIR-attachment measurements, which older libraries call bidirectional (spec section 5). The header's own wording is kept in `extra.source_geometry_term`.
+  - Plain "Reflectance", transmittance spectra, and spectra spliced from segments with different geometries: `unknown`.
+- **Sample description:** the `Description` header. The ECOSTRESS conversion appended parts from other ASTER fields to it ("Sample was …", "Particle size was …", "Collected by …", "Original ASTER Spectral Library name was …"), often with no separator ("white limestoneSample was Whole rock chips"). Each appended part is separated by ". ", or by a space after text already ending in a full stop. The rest of the text is kept as written.
+- **Instrument and laboratory:** from the filename tokens (`<…>.<lab>.<instrument>.spectrum.txt`). Spectra joined from a dispersive VSWIR and a Nicolet TIR measurement have the `spliced` processing flag.
+
+### EcoSIS (`ecosis`)
+
+An aggregated collection: each EcoSIS package is a dataset with its own licence and citation. Which packages are included, and how, is set per package in `src/openspeclib/loaders/ecosis_datasets.json` and explained in [ecosis-curation.md](ecosis-curation.md). That page also covers the scale inference, the masking window, duplicates, and the `setup` blocks that give each package's geometry and instrument with their evidence.
+
+### RELAB (`relab`, not in releases)
+
+- Files placed by hand. `inclusion` is `subset`, because completeness depends on what was downloaded.
+- Spectra from RELAB's bidirectional spectrometer (BD-VNIR) are `bidirectional`, with the incidence and emission angles in `extra` (`incidence_angle_deg`, `emission_angle_deg`; RELAB's standard angles as `nominal_*` keys when the header lacks them).
+- FTIR spectra, and spectra spliced from BD-VNIR and FTIR segments (flagged `spliced`), are `unknown`.
+
+### ASU Thermal Emission Spectral Library (`asu_tes`, not in releases)
+
+- Emissivity on a wavenumber axis (`cm-1`). Geometry is `directional` (emission viewed from above, ratioed to a blackbody, with no illumination geometry), and `measurement_reference` is `blackbody`.
+
+### Bishop Spectral Library (`bishop`, not in releases)
+
+- Reflectance. Geometry is `unknown`: the spectra come from more than one setup, and the files name neither instrument nor geometry.
+- The wavelength unit is inferred from the axis range (values above 100 mean nm).
+
+### OSSL (`ossl`, not in releases)
+
+- One record per sample and technique: VisNIR reflectance (`nm`, local id `{uuid}_vnir`) and MIR absorbance (`cm-1`, `{uuid}_mir`). MIR absorbance is decadic, derived from reflectance, and not rescaled; its records carry `absorbance_from_reflectance` in `measurement_processing`.
+- Each contributing soil library (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS, …) is a dataset. Licence CC-BY-4.0.
+- Geometry is `unknown`: the contributing laboratories used different setups, and the tables carry no per-spectrum geometry.
+
+## 3. Combine
 
 ```bash
-openspeclib validate ./library/
+openspeclib combine --input processed/ --output release/ [--release VERSION]
 ```
 
-Validation comprises two layers:
+Combine reads every `{collection}.jsonl` with its `{collection}.collection.json` and writes the release directory:
 
-### Schema Validation
+1. **One collection file per collection**, through `openspeclib.storage`. Rows are sorted by `id`, in row groups of 100, with BYTE_STREAM_SPLIT and zstd on the array columns (recommendations R1–R3). Only extension columns that hold values are written, and only their extensions are declared. Datasets with no rows are left out of the footer.
+2. **The writer checks its own output.** Each file is written to `{name}.part` and checked with the conformance checker (`openspeclib.conformance`). If any must-rule fails, the file is deleted and combine stops with the rule ids and examples. A non-conformant file is never written.
+3. **Id collisions.** If sanitising two upstream ids gives the same local id, the later one (in a fixed order) gets a `~2`, `~3`, … suffix. The result depends only on the records, so a rebuild gives the same ids.
+4. **The index**, `openspeclib-index.parquet`, with each file's SHA-256 and the release version in its footer.
+5. **`id-migration.csv`**: `old_id,new_id` for every spectrum whose id differs from its v0 id.
+6. **`checksums.txt`** for every file above.
 
-`catalog.json` is validated against `schemas/catalog.schema.json` (JSON Schema Draft 2020-12).
-
-Each Parquet chunk file is validated against the canonical Arrow schema (`openspeclib.storage.ARROW_SCHEMA`); the sibling `spectra/wavelengths.parquet` is validated against `WAVELENGTHS_ARROW_SCHEMA`. Column names, types, and nullability are compared against the spec, and any drift is reported. Per-source footers must carry the `openspeclib_version` and `source` metadata keys.
-
-### Semantic Validation
-
-Cross-referencing checks that go beyond schema conformance:
-
-- **Referential integrity:** Every `chunk_file` referenced in the catalog exists on disk; the sibling `spectra/wavelengths.parquet` exists.
-- **Bidirectional consistency:** Every spectrum in a chunk file has a corresponding catalog entry.
-- **Array length consistency:** `wavelengths` and `values` array lengths match the declared `num_points`.
-- **Boundary accuracy:** `wavelength_min` and `wavelength_max` match the actual data extrema.
-- **Uniqueness:** No duplicate spectrum IDs exist across the entire library.
-- **Quality metrics:** `bad_band_count` and `coverage_fraction` are consistent with the actual data values.
-- **Statistics accuracy:** Aggregate counts match the actual entry counts.
-- **Reflectance scale:** Every spectrum carries `reflectance_scale="unit"`; values outside [0, 2] are warned as a likely missed scale conversion.
-
-## Running the Full Pipeline
+## 4. Validate
 
 ```bash
-# Download all sources
-openspeclib download --source usgs --target ./raw/usgs
-openspeclib download --source ecostress --target ./raw/ecostress
-openspeclib download --source relab --target ./raw/relab
-openspeclib download --source asu_tes --target ./raw/asu_tes
-openspeclib download --source bishop --target ./raw/bishop
-
-# Ingest each source
-openspeclib ingest --source usgs --input ./raw/usgs --output ./processed/
-openspeclib ingest --source ecostress --input ./raw/ecostress --output ./processed/
-openspeclib ingest --source relab --input ./raw/relab --output ./processed/
-openspeclib ingest --source asu_tes --input ./raw/asu_tes --output ./processed/
-openspeclib ingest --source bishop --input ./raw/bishop --output ./processed/
-
-# Combine into master library
-openspeclib combine --input ./processed/ --output ./library/
-
-# Validate the result
-openspeclib validate ./library/
+openspeclib validate release/ --profile openspeclib --report release/validation-report.json
 ```
 
-The GitHub Actions workflow (`build-release.yml`) automates this entire sequence and packages the output as a versioned GitHub Release.
+The `format` profile (the default) checks conformance to the specification. The `openspeclib` profile adds the quality rules Q1–Q4, with the allowlist. The release build uses `openspeclib`, and any error stops it. See [validation.md](validation.md).
+
+## 5. Release
+
+The release workflow then:
+
+1. adds `validation-report.json` to the directory and to `checksums.txt`, and verifies every checksum;
+2. writes release notes from the index footer;
+3. creates the git tag `v<version>` and a GitHub Release with the collection files, the index, `id-migration.csv`, `validation-report.json` and `checksums.txt`.
+
+Zenodo and the Hugging Face mirror are manual steps; see [publishing.md](publishing.md).
