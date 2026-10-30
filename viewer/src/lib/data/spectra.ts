@@ -15,17 +15,32 @@ function toNumbers(v: unknown): number[] {
   return [];
 }
 
-/** SQL fetching the arrays of `records` (one UNION ALL branch per id). */
-function spectraSql(records: SpectrumRecord[], sources: Map<string, DataSource>): string {
-  const branches: string[] = [];
-  for (const r of records) {
+/** The collection file ref of each record, made readable by the engine. */
+async function readableRefs(
+  engine: DataEngine,
+  records: SpectrumRecord[],
+  sources: Map<string, DataSource>,
+): Promise<string[]> {
+  const refs = records.map((r) => {
     const ref = own(sources.get(r.sourceKey)?.fileRefs, r.file);
     if (!ref) throw new Error(`No collection file for ${r.id} (${r.file})`);
-    branches.push(
-      `SELECT id, wavelengths, ${ident('values')} FROM read_parquet(${lit(ref)}) WHERE id = ${lit(r.id)}`,
-    );
-  }
-  return branches.join('\nUNION ALL\n');
+    return ref;
+  });
+  const readable = engine.readable;
+  if (!readable) return refs;
+  const unique = [...new Set(refs)];
+  const resolved = new Map(await Promise.all(unique.map(async (ref) => [ref, await readable(ref)] as const)));
+  return refs.map((ref) => resolved.get(ref)!);
+}
+
+/** SQL fetching the arrays of `records` (one UNION ALL branch per id), reading `refs[i]` for `records[i]`. */
+function spectraSql(records: SpectrumRecord[], refs: string[]): string {
+  return records
+    .map(
+      (r, i) =>
+        `SELECT id, wavelengths, ${ident('values')} FROM read_parquet(${lit(refs[i])}) WHERE id = ${lit(r.id)}`,
+    )
+    .join('\nUNION ALL\n');
 }
 
 /** Fetch the arrays for some records. Records whose row is missing are left out. */
@@ -35,7 +50,7 @@ export async function fetchSpectra(
   sources: Map<string, DataSource>,
 ): Promise<SpectrumFull[]> {
   if (records.length === 0) return [];
-  const rows = await engine.rows(spectraSql(records, sources));
+  const rows = await engine.rows(spectraSql(records, await readableRefs(engine, records, sources)));
   const byId = new Map(rows.map((r) => [String(r.id), r]));
   const out: SpectrumFull[] = [];
   for (const rec of records) {

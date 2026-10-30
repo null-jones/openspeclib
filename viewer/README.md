@@ -8,8 +8,11 @@ browser.
 
 Everything runs client-side. DuckDB-WASM reads the release index
 (`openspeclib-index.parquet`). It then fetches single spectra from the
-collection files with HTTP Range requests, about one row group per spectrum.
-There is no server. Files you check or open are read in place and never
+collection files with HTTP Range requests, about one row group per spectrum,
+where the host supports them. GitHub Pages does not (it answers a browser's
+Range request with a slice of its gzip copy), so there the viewer downloads a
+collection file whole, once, the first time it needs a spectrum from it
+(`src/lib/data/remote.ts`). There is no server. Files you check or open are read in place and never
 uploaded.
 
 React 19, TypeScript, Vite, Tailwind CSS, DuckDB-WASM, Plotly.
@@ -60,4 +63,5 @@ GitHub Pages.
   `python viewer/tests/quality/generate_expected.py` from the repository root
   after changing the validator, the bounds or the allowlist.
 - `tests/http-range.test.ts` checks that reading one spectrum over HTTP uses
-  Range requests only.
+  Range requests only, and that on a host that gzips Range responses (as GitHub
+  Pages does) the collection file is downloaded once instead.

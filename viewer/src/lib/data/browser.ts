@@ -9,6 +9,7 @@ import { CHECKSUMS_FILE, INDEX_FILE, MIGRATION_FILE, dataFileUrl } from '../../c
 import type { DataEngine } from './engine';
 import { loadSource, type LoadedSource } from './loader';
 import { parseMigrationCsv } from './migration';
+import { remoteFileResolver } from './remote';
 
 let enginePromise: Promise<DataEngine> | null = null;
 
@@ -21,6 +22,7 @@ export function getDataEngine(): Promise<DataEngine> {
       return {
         rows: async (sql) => tableToRows(await conn.query(sql)),
         columns: async (sql) => tableToColumns(await conn.query(sql)),
+        readable: remoteFileResolver((name, bytes) => db.registerFileBuffer(name, bytes)),
       } satisfies DataEngine;
     })().catch((e) => {
       enginePromise = null;
@@ -51,7 +53,8 @@ let releasePromise: Promise<LoadedSource> | null = null;
 /**
  * Load the release index. The file is small (under 1 MB), so it is fetched
  * in one request and registered as a buffer; collection files stay remote
- * and are read with range requests, one row group per spectrum.
+ * and are read with range requests, one row group per spectrum, where the
+ * host supports them (see remote.ts).
  */
 export function loadRelease(): Promise<LoadedSource> {
   if (!releasePromise) {
