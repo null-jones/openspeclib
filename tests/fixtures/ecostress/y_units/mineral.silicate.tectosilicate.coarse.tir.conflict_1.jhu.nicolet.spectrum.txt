@@ -1,0 +1,25 @@
+Name: Conflict One
+Type: Mineral
+Class: Silicate
+Subclass: Tectosilicate
+Particle Size: Fine
+Sample No.: conflict_1
+Owner: JHU
+Wavelength Range: TIR
+Origin: Test fixture
+Collection Date: N/A
+Description: Y Units spelling fixture
+Measurement: Transmission
+First Column: X
+Second Column: Y
+X Units: Wavelength (micrometers)
+Y Units:Reflectance (percent)
+First X Value: 2.5000
+Last X Value: 14.0000
+Number of X Values: 4
+Additional Information: none
+
+ 2.5000	 50.0000
+ 5.0000	100.0000
+ 8.0000	 4.5000
+14.0000	 0.0000

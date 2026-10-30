@@ -21,16 +21,17 @@ export default function CategoryFilter() {
 
   return (
     <div>
-      <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+      <h3 id="filter-category" className="text-xs font-medium text-gray-600 uppercase tracking-wider">
         Categories
-      </label>
-      <div className="flex flex-wrap gap-1.5 mt-1.5">
+      </h3>
+      <div className="flex flex-wrap gap-1.5 mt-1.5" role="group" aria-labelledby="filter-category">
         {CATEGORIES.map((cat) => {
           const active = state.selectedCategories.includes(cat.value);
           return (
             <button
               key={cat.value}
               onClick={() => dispatch({ type: 'TOGGLE_CATEGORY', category: cat.value })}
+              aria-pressed={active}
               className={`px-2 py-0.5 text-xs rounded-full border transition-all
                 ${active
                   ? cat.color + ' ring-1 ring-offset-1 ring-indigo-400'

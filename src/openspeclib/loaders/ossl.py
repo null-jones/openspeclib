@@ -19,7 +19,9 @@ tables is ``id.layer_uuid_txt``.
 
 A single sample may have either VNIR, MIR, or both. The loader emits
 **one SpectrumRecord per (sample, technique) pair**, with id
-``ossl:{layer_uuid}:{vnir|mir}``.
+``ossl:{layer_uuid}_{vnir|mir}`` (``original_id`` is the layer uuid). Each
+contributing library (``dataset.code_ascii_txt``) becomes a dataset of the
+collection.
 
 License: CC-BY 4.0. Reference:
 https://doi.org/10.1371/journal.pone.0296545
@@ -28,6 +30,7 @@ https://doi.org/10.1371/journal.pone.0296545
 from __future__ import annotations
 
 import logging
+import math
 import re
 import urllib.request
 from pathlib import Path
@@ -36,17 +39,22 @@ from typing import Any, Iterator
 import pyarrow.csv as pa_csv
 from tqdm import tqdm
 
-from openspeclib.loaders.base import BaseLoader
+from openspeclib.loaders.base import (
+    GENERIC_SENTINELS,
+    BaseLoader,
+    mask_invalid_values,
+    spectrum_id,
+)
 from openspeclib.models import (
-    Dataset,
+    CollectionInfo,
+    DatasetInfo,
+    Geometry,
+    Inclusion,
     Material,
     MaterialCategory,
     Measurement,
-    MeasurementTechnique,
-    Quality,
+    Quantity,
     Sample,
-    Source,
-    SourceLibrary,
     SpectralData,
     SpectrumRecord,
     WavelengthUnit,
@@ -65,7 +73,9 @@ OSSL_FILES = {
     "soilsite": f"ossl_soilsite_{OSSL_VERSION}.csv.gz",
 }
 
-OSSL_LICENSE = "CC-BY 4.0"
+COLLECTION_ID = "ossl"
+
+OSSL_LICENSE = "CC-BY-4.0"
 OSSL_CITATION = (
     "Sanderman, J., Savage, K., Dangal, S.R.S., Duran, G., Rivard, C., "
     "Cavigelli, M.A., Gollany, H.T., Jastrow, J.D., Millar, N., "
@@ -77,6 +87,34 @@ OSSL_CITATION = (
 )
 OSSL_DOI = "10.1371/journal.pone.0296545"
 OSSL_URL = "https://soilspectroscopy.github.io/ossl-manual/"
+
+OSSL_COLLECTION = CollectionInfo(
+    id=COLLECTION_ID,
+    title="Open Soil Spectral Library",
+    description=(
+        "Soil VisNIR reflectance and MIR absorbance spectra combined from contributing "
+        "libraries (KSSL, AfSIS, ICRAF-ISRIC, NEON, LUCAS and others), with site metadata."
+    ),
+    version=OSSL_VERSION,
+    url=OSSL_URL,
+    publisher="Soil Spectroscopy for Global Good",
+    license=OSSL_LICENSE,
+    citation=OSSL_CITATION + f" https://doi.org/{OSSL_DOI}.",
+    inclusion=Inclusion.COMPLETE,
+    keywords=["soil", "VisNIR", "MIR"],
+)
+
+# Measurement geometry recorded on every OSSL record: ``unknown`` (spec
+# section 4.2). OSSL harmonises spectra from many contributing laboratories
+# that used different instruments and sample presentations (contact probes,
+# sample cups, diffuse-reflectance FTIR accessories), and the L0 tables this
+# loader reads carry no per-spectrum geometry.
+OSSL_GEOMETRY = Geometry.UNKNOWN
+
+# Instrument category by technique. Mid-infrared spectra (4000-600 cm-1, the
+# ``scan_mir`` columns) are Fourier-transform measurements; VisNIR spectra come
+# from several instrument types and are left unset.
+OSSL_INSTRUMENT_TYPES: dict[str, str] = {"mir": "ftir"}
 
 # Column-name patterns for the spectral channels.
 _VNIR_PATTERN = re.compile(r"^scan_visnir\.([0-9]+(?:\.[0-9]+)?)_ref$")
@@ -151,22 +189,25 @@ def _build_record(
     *,
     layer_uuid: str,
     technique_short: str,
-    technique: MeasurementTechnique,
+    quantity: Quantity,
     wavelength_unit: WavelengthUnit,
     wavelengths: list[float],
     values: list[float],
     site: dict[str, Any] | None,
+    datasets: dict[str, DatasetInfo] | None = None,
 ) -> SpectrumRecord:
     """Construct a SpectrumRecord from one OSSL row.
 
     Args:
         layer_uuid: ``id.layer_uuid_txt`` for this sample.
-        technique_short: Short tag used in the global id (``"vnir"`` / ``"mir"``).
-        technique: Measurement technique enum value.
+        technique_short: Short tag used in the spectrum id (``"vnir"`` / ``"mir"``).
+        quantity: Measured quantity.
         wavelength_unit: Unit of the wavelength axis.
         wavelengths: Axis values, ascending.
         values: Spectral values aligned to ``wavelengths``.
         site: Row from soilsite for this layer, or ``None`` if absent.
+        datasets: Optional accumulator of contributing datasets; the record's
+            dataset is added (or its ``spectra_included`` count increased).
 
     Returns:
         A populated ``SpectrumRecord``.
@@ -208,17 +249,6 @@ def _build_record(
 
     dataset_code = str(additional.get("dataset.code_ascii_txt") or "").strip()
     dataset_title = str(additional.get("dataset.title_utf8_txt") or dataset_code).strip()
-    dataset_obj: Dataset | None = None
-    if dataset_code:
-        dataset_obj = Dataset(
-            id=dataset_code,
-            title=dataset_title or dataset_code,
-            license=OSSL_LICENSE,
-            license_url="https://creativecommons.org/licenses/by/4.0/",
-            url=OSSL_URL,
-            organization=dataset_code,
-        )
-
     name_parts = [dataset_code or "OSSL", layer_uuid[:8]]
     if technique_short == "mir":
         name_parts.append("MIR")
@@ -226,18 +256,13 @@ def _build_record(
         name_parts.append("VNIR")
     name = " ".join(name_parts)
 
-    return SpectrumRecord(
-        id=f"ossl:{layer_uuid}:{technique_short}",
+    record = SpectrumRecord(
+        id=spectrum_id(COLLECTION_ID, f"{layer_uuid}_{technique_short}"),
+        collection=COLLECTION_ID,
+        original_id=layer_uuid,
         name=name,
-        source=Source(
-            library=SourceLibrary.OSSL,
-            library_version=OSSL_VERSION,
-            original_id=layer_uuid,
-            url=OSSL_URL,
-            license=OSSL_LICENSE,
-            citation=OSSL_CITATION,
-            dataset=dataset_obj,
-        ),
+        license=OSSL_LICENSE,
+        dataset_id=dataset_code or None,
         material=Material(
             name="Soil",
             category=MaterialCategory.SOIL,
@@ -250,23 +275,36 @@ def _build_record(
             collection_date=_parse_date(obs_date),
         ),
         measurement=Measurement(
-            technique=technique,
+            quantity=quantity,
+            geometry=OSSL_GEOMETRY,
+            instrument_type=OSSL_INSTRUMENT_TYPES.get(technique_short),
             laboratory=str(site.get("dataset.code_ascii_txt") or "OSSL contributing lab"),
             date=_parse_date(obs_date),
+            # OSSL MIR is diffuse-reflectance FTIR reported as log10(1/R) (spec 4.1).
+            processing=(["absorbance_from_reflectance"] if quantity is Quantity.ABSORBANCE else []),
         ),
         spectral_data=SpectralData(
-            type=technique,
             wavelength_unit=wavelength_unit,
-            wavelength_min=wavelengths[0],
-            wavelength_max=wavelengths[-1],
-            num_points=len(wavelengths),
             wavelengths=wavelengths,
             values=values,
-            reflectance_scale="unit",
         ),
-        additional_properties=additional,
-        quality=Quality(coverage_fraction=1.0),
+        extra=additional,
     )
+    # Count the dataset only once the record has been built successfully.
+    if dataset_code and datasets is not None:
+        existing = datasets.get(dataset_code)
+        if existing is None:
+            datasets[dataset_code] = DatasetInfo(
+                id=dataset_code,
+                title=dataset_title or dataset_code,
+                license=OSSL_LICENSE,
+                url=OSSL_URL,
+                organization=dataset_code,
+                spectra_included=1,
+            )
+        else:
+            existing.spectra_included = (existing.spectra_included or 0) + 1
+    return record
 
 
 def _parse_date(raw: Any) -> Any:
@@ -292,22 +330,29 @@ def _iter_table_records(
     path: Path,
     *,
     pattern: re.Pattern[str],
-    technique: MeasurementTechnique,
+    quantity: Quantity,
     technique_short: str,
     wavelength_unit: WavelengthUnit,
     sites: dict[str, dict[str, Any]],
     desc: str,
+    datasets: dict[str, DatasetInfo] | None = None,
+    stats: dict[str, int] | None = None,
 ) -> Iterator[SpectrumRecord]:
     """Stream SpectrumRecord objects from one OSSL spectral CSV.
 
     Args:
         path: Path to ``ossl_{visnir|mir}_*.csv.gz``.
         pattern: Regex matching the spectral column names.
-        technique: Measurement technique to stamp on each record.
-        technique_short: Short tag for the global id (``"vnir"`` / ``"mir"``).
+        quantity: Measured quantity to stamp on each record.
+        technique_short: Short tag for the spectrum id (``"vnir"`` / ``"mir"``).
         wavelength_unit: Unit of the spectral axis.
         sites: ``layer_uuid`` -> site row mapping for metadata lookup.
         desc: Progress-bar label.
+        datasets: Optional accumulator of contributing datasets.
+        stats: Optional counters, updated with ``no_layer_uuid`` (rows without
+            an id, dropped), ``all_missing`` (rows with no measured value on
+            this instrument) and ``build_failed`` (rows whose record failed
+            validation).
 
     Yields:
         A ``SpectrumRecord`` per row that has a non-empty wavelength axis.
@@ -328,9 +373,15 @@ def _iter_table_records(
     uuid_col = table.column("id.layer_uuid_txt").to_pylist()
     spectra_cols_data = [table.column(c).to_pylist() for c in spectral_cols]
 
+    counts = stats if stats is not None else {}
+
+    def bump(key: str) -> None:
+        counts[key] = counts.get(key, 0) + 1
+
     for i in tqdm(range(n_rows), desc=desc, leave=False):
         layer_uuid = uuid_col[i]
         if not layer_uuid:
+            bump("no_layer_uuid")
             continue
         values: list[float] = []
         for col_data in spectra_cols_data:
@@ -342,22 +393,28 @@ def _iter_table_records(
                     values.append(float(v))
                 except (ValueError, TypeError):
                     values.append(float("nan"))
+        # Missing-value contract (see loaders.base): empty cells are already
+        # NaN; sentinel / fill / non-finite values are folded into NaN too.
+        values = mask_invalid_values(values, sentinels=GENERIC_SENTINELS)
         # Skip rows that are entirely missing — common for samples that
         # exist in soilsite but were never measured on this instrument.
-        if not any(v == v for v in values):  # all NaN
+        if all(math.isnan(v) for v in values):
+            bump("all_missing")
             continue
         try:
             yield _build_record(
                 layer_uuid=layer_uuid,
                 technique_short=technique_short,
-                technique=technique,
+                quantity=quantity,
                 wavelength_unit=wavelength_unit,
                 wavelengths=wavelengths,
                 values=values,
                 site=sites.get(layer_uuid),
+                datasets=datasets,
             )
         except Exception:
-            logger.warning(
+            bump("build_failed")
+            logger.error(
                 "Failed to build OSSL record for %s (%s)",
                 layer_uuid,
                 technique_short,
@@ -368,9 +425,51 @@ def _iter_table_records(
 class OsslLoader(BaseLoader):
     """Loader for the Open Soil Spectral Library."""
 
+    def __init__(self) -> None:
+        """Initialise the contributing-dataset accumulator and counters."""
+        self._datasets: dict[str, DatasetInfo] = {}
+        self.stats: dict[str, int] = {}
+
+    @property
+    def fatal_error_count(self) -> int:
+        """Rows whose record failed validation; these fail ``ingest``.
+
+        Returns:
+            The number of build failures in the last :meth:`load`.
+        """
+        return self.stats.get("build_failed", 0)
+
     def source_name(self) -> str:
-        """Return the canonical source identifier (matches :class:`SourceLibrary`)."""
-        return "ossl"
+        """Return the collection id."""
+        return COLLECTION_ID
+
+    def collection_info(self) -> CollectionInfo:
+        """Return the OSSL collection metadata.
+
+        Returns:
+            The footer ``collection`` object.
+        """
+        dropped = self.stats.get("no_layer_uuid", 0) + self.stats.get("build_failed", 0)
+        if not dropped:
+            return OSSL_COLLECTION
+        return OSSL_COLLECTION.model_copy(
+            update={
+                "inclusion": Inclusion.SUBSET,
+                "inclusion_notes": (
+                    f"Every OSSL {OSSL_VERSION} VisNIR and MIR spectrum except "
+                    f"{self.stats.get('no_layer_uuid', 0)} rows without a layer id and "
+                    f"{self.stats.get('build_failed', 0)} rows that failed validation."
+                ),
+            }
+        )
+
+    def datasets(self) -> dict[str, DatasetInfo]:
+        """Return the contributing libraries seen by the last :meth:`load`.
+
+        Returns:
+            Dataset metadata keyed by OSSL dataset code.
+        """
+        return dict(sorted(self._datasets.items()))
 
     def download(self, target_dir: Path) -> Path:
         """Download the three OSSL CSV.gz files into ``target_dir/ossl/``.
@@ -392,7 +491,7 @@ class OsslLoader(BaseLoader):
 
         Yields one record per (sample, technique) pair: a sample with both
         VNIR and MIR measurements emits two records with ids
-        ``ossl:{uuid}:vnir`` and ``ossl:{uuid}:mir``.
+        ``ossl:{uuid}_vnir`` and ``ossl:{uuid}_mir``.
 
         Args:
             source_dir: Directory containing the OSSL CSV.gz files.
@@ -403,6 +502,8 @@ class OsslLoader(BaseLoader):
         # Allow callers to point at either the parent target_dir or the
         # ossl/ subdirectory directly.
         base = source_dir / "ossl" if (source_dir / "ossl").is_dir() else source_dir
+        self._datasets = {}
+        self.stats = {}
         soilsite_path = base / OSSL_FILES["soilsite"]
         if not soilsite_path.exists():
             logger.warning(
@@ -418,11 +519,13 @@ class OsslLoader(BaseLoader):
             yield from _iter_table_records(
                 visnir_path,
                 pattern=_VNIR_PATTERN,
-                technique=MeasurementTechnique.REFLECTANCE,
+                quantity=Quantity.REFLECTANCE,
                 technique_short="vnir",
                 wavelength_unit=WavelengthUnit.NANOMETERS,
                 sites=sites,
                 desc="OSSL VNIR",
+                datasets=self._datasets,
+                stats=self.stats,
             )
 
         mir_path = base / OSSL_FILES["mir"]
@@ -430,11 +533,13 @@ class OsslLoader(BaseLoader):
             yield from _iter_table_records(
                 mir_path,
                 pattern=_MIR_PATTERN,
-                technique=MeasurementTechnique.ABSORBANCE,
+                quantity=Quantity.ABSORBANCE,
                 technique_short="mir",
                 wavelength_unit=WavelengthUnit.WAVENUMBERS,
                 sites=sites,
                 desc="OSSL MIR",
+                datasets=self._datasets,
+                stats=self.stats,
             )
 
 

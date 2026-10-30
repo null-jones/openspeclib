@@ -1,0 +1,953 @@
+{
+ "tests/conformance/fixtures/f10_extent_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f10_infinite_stored.parquet": {
+  "failed": [
+   "Q4"
+  ],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f10_microns_not_converted.parquet": {
+  "failed": [
+   "Q4"
+  ],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f10_min_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f10_wavenumber_not_converted.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_bad_syntax.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_dataset_licence.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_deep_nesting.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_documentref.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_double_space.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_empty.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_footer_licence.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_invalid_character.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_lowercase_licenseref.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_lowercase_noassertion.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_lowercase_operator.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_nbsp.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_noassertion_compound.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_tab.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_trailing_space.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_undefined_ref.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f11_with_noassertion.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f12_spectra_included_float.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f12_spectra_included_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f12_unknown_dataset.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f12_unused_dataset.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f13_bandpass_length.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f13_infinite_element.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f13_negative_stddev.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f13_null_element.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_bad_created.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_bad_dataset_key.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_both_footer_keys.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_corrupt_extension_page.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_corrupt_page.parquet": {
+  "failed": [],
+  "skipped": true,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_created_bad_offset.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_dataset_subset_without_notes.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_doi_trailing_newline.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_empty_footer_licence.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_f3_f7_unknowns_in_1_0.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_f3_no_footer_unknown_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_format_version_leading_zero.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_impossible_created.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_invalid_json.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_invalid_utf8_column_name.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_missing_footer.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_not_parquet.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_subset_without_notes.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_unknown_footer_field.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f1_unsupported_major.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_empty_name.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_invalid_utf8_name.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_missing_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_null_keyword_element.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_null_value.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_null_values_list.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_whitespace_name.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f2_wrong_type.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_duplicate_x_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_future_minor_nested_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_index_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_invalid_utf8_x_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_nested_x_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_undeclared_extension.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f3_unknown_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f4_extension_type.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f4_extra_array.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f4_extra_invalid_json.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f4_extra_string.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f4_invalid_utf8_extra.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_bad_local_id.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_duplicate_id.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_empty_local_id.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_id_too_long.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_unanchored_prefix.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f5_wrong_prefix.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f6_collection_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f7_bad_quantity.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f7_vocabulary_case.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_infinite_wavelength.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_nan_wavelength.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_negative_wavelength.parquet": {
+  "failed": [
+   "Q4"
+  ],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_not_monotonic.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_null_wavelength.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_repeated_wavelength.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_single_point.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f8_zero_wavelength.parquet": {
+  "failed": [
+   "Q4"
+  ],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f9_infinity.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f9_just_above_sentinel.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f9_length_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f9_null_element.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/f9_sentinel.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_absolute_path.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_bad_footer.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_both_keys.parquet": {
+  "failed": [],
+  "skipped": true,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_duplicate_future_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_duplicate_id_across_files.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_duplicate_row.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_extension_value_for_lacking_file.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_extra_row.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_file_listed_twice.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_file_url.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_future_minor.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_future_minor_nested_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_list_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_metadata_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_missing_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_missing_extension_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_missing_file.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_missing_footer.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_missing_row.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_nested_x_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_null_typed_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_num_spectra_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_of_nonconformant.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_over_future_minor.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_over_future_minor_with_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_over_null_typed_collection.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_sha256_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_shared_collection_id.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_unknown_column.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_unknown_column_not_from_future_file.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_unlisted_file.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_valid.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_value_mismatch.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_wrong_num_points.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_wrong_type.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/index_x_column_differs.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r1_no_id_statistics.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r1_unsorted.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r2_large_row_group.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r3_bandpass_no_bss.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r3_default_encoding.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r3_dictionary.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r3_no_bss.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r3_snappy.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r4_all_nan.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/r5_unknown_geometry.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_250_rows.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_date64.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_descending_nm.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_dictionary_string.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_empty.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_extra_object.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_fixed_size_list.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_full.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_future_minor.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_large_types.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_leap_second.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_minimal.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_minimal_rest.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_minimal_subset.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_no_arrow_schema.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_null_dataset_id.parquet": {
+  "failed": [],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "tests/conformance/fixtures/valid_sentinel_limit.parquet": {
+  "failed": [
+   "Q2"
+  ],
+  "skipped": false,
+  "waived": [],
+  "warned": []
+ },
+ "viewer/public/data/usgs_splib07.parquet": {
+  "failed": [],
+  "sha256": "293676bf330c3694f43cbae52edc6a480f7d2ef63807fb1b2d6f8622421cb983",
+  "skipped": false,
+  "waived": [
+   "Q2"
+  ],
+  "warned": [
+   "Q3"
+  ]
+ }
+}

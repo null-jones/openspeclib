@@ -1,0 +1,48 @@
+# Citation metadata for the OpenSpecLib software and the OpenSpecLib Format specification.
+# Release checklist (docs/publishing.md): update `version` and add `date-released`
+# when a release is tagged. Add the Zenodo concept DOI under `identifiers` once the
+# first release has been archived.
+cff-version: 1.2.0
+message: >-
+  If you use OpenSpecLib or the OpenSpecLib Format, please cite it using the
+  metadata below. The spectra themselves come from their source libraries,
+  each with its own licence and citation: cite those sources too (see each
+  collection file's footer metadata, or docs/provenance.md).
+type: software
+title: "OpenSpecLib: an open format and toolkit for spectral libraries"
+abstract: >-
+  OpenSpecLib is a Python toolkit that ingests public spectral libraries
+  (USGS Spectral Library Version 7, ECOSTRESS, EcoSIS and others), validates
+  them, and publishes them in the OpenSpecLib Format: one self-describing
+  Apache Parquet file per collection, with inline wavelength axes, required
+  quantity and measurement geometry, NaN for missing values, and SPDX
+  licences. The repository holds the format specification, a conformance
+  checker, converters and a web viewer.
+authors:
+  - family-names: Jones
+    given-names: Ellie
+version: 0.2.0
+license: MIT
+repository-code: "https://github.com/null-jones/openspeclib"
+url: "https://null-jones.github.io/openspeclib/"
+keywords:
+  - spectral library
+  - spectroscopy
+  - reflectance
+  - remote sensing
+  - hyperspectral
+  - Apache Parquet
+  - data standard
+references:
+  - type: standard
+    title: "OpenSpecLib Format"
+    version: 1.0.0
+    authors:
+      - family-names: Jones
+        given-names: Ellie
+    url: "https://github.com/null-jones/openspeclib/blob/v0.2.0/docs/spec/format-v1.md"
+    repository-code: "https://github.com/null-jones/openspeclib"
+    license: MIT
+    notes: >-
+      Specification version 1.0.0. The specification is versioned
+      independently of the openspeclib package and of data releases.

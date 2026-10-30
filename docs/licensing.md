@@ -1,87 +1,82 @@
-# Licensing and Citations
+# Licensing
 
-## Important Notice
+> **The spectra keep their source's licence.** Licences differ between collections and, for EcoSIS, between datasets. Check the licence of every spectrum you use.
 
-**Licensing terms differ between source spectral libraries included in OpenSpecLib.** Each source library has its own license governing how its data may be used, redistributed, or cited. Users must review and comply with the specific license for each source library from which they use data.
+The OpenSpecLib code, specification and documentation are released under the [MIT License](../LICENSE). That licence does not cover the data.
 
-OpenSpecLib code is released under the [MIT License](../LICENSE). However, the spectral data aggregated by OpenSpecLib retains the original licensing terms of each source library.
+## Where licences are recorded
 
----
+In OpenSpecLib Format v1, licences are machine-readable in three places in every collection file:
 
-## `licenses.json`
+| Where | What |
+|---|---|
+| `license` column | The licence of each spectrum. Authoritative. |
+| Footer `collection.license` | The licence of the collection as a whole, or `NOASSERTION` when rows differ |
+| Footer `datasets.<id>.license` | The licence of each contributing dataset (aggregated collections) |
 
-Every OpenSpecLib release includes a `licenses.json` file alongside `catalog.json`. This file provides a machine-readable index of licensing and citation information for each source library, keyed by the same source identifiers used in the catalog and Parquet files.
+Each value is one of (rule F11):
 
-### Structure
+- an **SPDX licence expression**, such as `CC-BY-4.0` or `ODbL-1.0`;
+- a **`LicenseRef-…` identifier**, for terms that have no SPDX id or a licence named without a version. Every `LicenseRef-` used in a file is defined in the footer's `collection.license_refs`, with a `name`, and where known a `url` and the terms as `text`;
+- **`NOASSERTION`**, when the source does not say. The footer's `license_note` then explains.
 
-```json
-{
-  "openspeclib_version": "0.1.0",
-  "generated_at": "2026-04-16T00:00:00Z",
-  "notice": "Licensing terms differ between source spectral libraries...",
-  "sources": {
-    "usgs_splib07": {
-      "name": "usgs_splib07",
-      "version": "7a",
-      "url": "https://doi.org/10.5066/F7RR1WDJ",
-      "license": "Public Domain",
-      "license_url": null,
-      "citation": "Kokaly, R.F., Clark, R.N., ...",
-      "citation_doi": "10.3133/ds1035"
-    }
-  }
-}
+There is no separate licence file. Releases up to v0.0.7 had none either (their licences were in the catalog JSON; `licenses.json` was only written by `openspeclib combine`). The footers and the index, whose footer copies every collection footer, hold this information now.
+
+## Looking up a spectrum's licence
+
+```python
+import openspeclib
+
+lib = openspeclib.open("ecosis.parquet")
+spectrum = lib.get(lib.search(category="water")["id"][0].as_py())
+license_id = spectrum.metadata["license"]
+definition = lib.metadata["collection"].get("license_refs", {}).get(license_id)
+dataset = lib.metadata["datasets"].get(spectrum.metadata["dataset_id"] or "", {})
+print(license_id, definition, dataset.get("citation"))
 ```
 
-### Keys
+The README quickstart does the same through the index. With SQL, `license` is an ordinary column, and the footer is in `parquet_kv_metadata` (see [reading.md](reading.md)).
 
-The keys in `sources` match the `source.library` column in each Parquet file and the `source.library` field in each catalog record. This allows consumers to look up the license for any spectrum:
+## Per-collection licences
 
-1. Read the `source.library` value from a spectrum (e.g. `"usgs_splib07"`)
-2. Use it as a key into `licenses.json` `sources`
-3. Display or check the `license` and `citation` fields
-
-### Fields
-
-| Field | Description |
-|---|---|
-| `name` | Source library identifier |
-| `version` | Version of the source library |
-| `url` | DOI or URL for the source library |
-| `license` | License terms summary |
-| `license_url` | URL to full license text (if available) |
-| `citation` | Recommended citation string |
-| `citation_doi` | DOI for the citation (if available) |
-
----
-
-## Per-Source Licensing Summary
-
-| Source | License | Citation DOI |
+| Collection | Licence id | Meaning |
 |---|---|---|
-| USGS Spectral Library Version 7 | Public Domain | [10.3133/ds1035](https://doi.org/10.3133/ds1035) |
-| ECOSTRESS Spectral Library | Public Domain | [10.1016/j.rse.2019.05.015](https://doi.org/10.1016/j.rse.2019.05.015) |
-| RELAB Spectral Database | Public Domain | -- |
-| ASU Thermal Emission Spectral Library | Public Domain | [10.1029/1999JE001138](https://doi.org/10.1029/1999JE001138) |
-| Bishop Spectral Library | Public Domain (non-commercial use with citation) | [10.1180/claymin.2008.043.1.03](https://doi.org/10.1180/claymin.2008.043.1.03) |
-| EcoSIS | EcoSIS Data Use Policy (per-dataset citations) | -- |
+| `usgs_splib07` | `LicenseRef-USGS-PublicDomain` | U.S. Government work, public domain. The USGS asks users who modify the data to describe their changes, and appreciates acknowledgement. |
+| `ecostress` | `LicenseRef-ECOSTRESS-Terms` | No standard licence. JPL is operated by Caltech for NASA, so its works are not automatically U.S. Government public domain; the provider's terms at <https://speclib.jpl.nasa.gov> apply. Cite Meerdink et al. (2019). |
+| `ecosis` | `NOASSERTION` at collection level | Varies by dataset; see below |
+| `relab` (not released) | `LicenseRef-RELAB-ResearchUse` | Free for research use with citation |
+| `asu_tes` (not released) | `LicenseRef-ASU-TES-ResearchUse` | Free for research use with citation |
+| `bishop` (not released) | `LicenseRef-Bishop-NonCommercial` | Non-commercial use only, with citation |
+| `ossl` (not released) | `CC-BY-4.0` | Creative Commons Attribution 4.0 |
 
-Note that while most sources are designated "Public Domain", the Bishop Spectral Library restricts use to non-commercial purposes and requires citation. EcoSIS datasets have individual per-dataset citations stored in each spectrum's `source.citation` field. Always check the specific terms for your use case.
+## EcoSIS: per-dataset licences
 
----
+Each EcoSIS package states its own licence. OpenSpecLib maps the EcoSIS label to an identifier:
 
-## Attribution Requirements
+| EcoSIS label | Identifier |
+|---|---|
+| Open Data Commons Open Database License (ODbL) | `ODbL-1.0` |
+| Open Data Commons Attribution License | `ODC-By-1.0` |
+| Creative Commons Attribution | `LicenseRef-EcoSIS-CC-BY` (no version stated) |
+| Creative Commons Attribution Share-Alike | `LicenseRef-EcoSIS-CC-BY-SA` (no version stated) |
+| Creative Commons Non-Commercial (Any) | `LicenseRef-EcoSIS-CC-NC` |
+| Other (Open) | `LicenseRef-EcoSIS-Other-Open` (an open licence the package does not name; check the package page) |
+| anything else or none | `NOASSERTION`, with the original label in the dataset's `license_note` |
 
-When publishing results derived from OpenSpecLib data:
+The Creative Commons labels become `LicenseRef-` identifiers rather than, for example, `CC-BY-4.0`, because EcoSIS does not say which version applies, and the specification asks producers not to guess (spec section 3).
 
-1. **Cite the OpenSpecLib project.**
-2. **Cite the specific source library or libraries** from which the data originated (identifiable via the `source.library` field in each spectrum record).
+The `ecosis` collection's footer is an **umbrella entry**: its `license` is `NOASSERTION` with a note that the per-row `license` and the dataset licences are authoritative, and its `citation` points to the per-dataset citations. Never apply the umbrella to a spectrum; use the row's `license` and its dataset's `citation`.
 
-The `citation` field in `licenses.json` (and in each spectrum's `source.citation`) provides the appropriate citation string. If a `citation_doi` is available, use it to construct a persistent link.
+Some EcoSIS datasets are share-alike (`LicenseRef-EcoSIS-CC-BY-SA`) or non-commercial (`LicenseRef-EcoSIS-CC-NC`). Filter on `license` if your use needs it:
 
----
+```sql
+SELECT license, count(*) AS spectra FROM 'ecosis.parquet' GROUP BY license ORDER BY spectra DESC;
+```
 
-## Further Reading
+## Exported data
 
-- [Data Provenance](provenance.md) -- Full provenance details, recommended citations (BibTeX-ready), and descriptions for each source library
-- [JSON Schema](../schemas/licenses.schema.json) -- Machine-readable schema for `licenses.json`
+`openspeclib export` keeps the licence with the data: CSV rows carry `license` and an `attribution` column; ENVI headers carry the licence; and every export writes a `NAME.README.md` listing the licences and citations of the exported spectra. Keep it with the data when you share it. See [converting.md](converting.md).
+
+## Attribution
+
+Cite the source of each spectrum, and OpenSpecLib if you used its format or tools. See [provenance.md](provenance.md#what-to-cite).

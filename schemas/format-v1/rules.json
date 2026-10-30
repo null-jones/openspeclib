@@ -1,0 +1,213 @@
+{
+  "format_version": "1.0.0",
+  "description": "Conformance rules for OpenSpecLib Format v1 (docs/spec/format-v1.md section 8). Normative. `level`: 'must' rules decide conformance; 'should' rules are recommendations reported as warnings; 'qa' rules belong to the OpenSpecLib quality profile. `applies_to`: 'collection' or 'index' files.",
+  "rules": [
+    {
+      "id": "F1",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Footer metadata",
+      "text": "The file is a valid Parquet file. The footer key `openspeclib` exists, holds valid JSON that validates against `#/$defs/collectionFooter` in the footer schema, `format_version` has major version 1, and `created` is a real calendar date-time. The file does not also carry the key `openspeclib_index`."
+    },
+    {
+      "id": "F2",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Core columns",
+      "text": "Every core column exists with its type, as implied by the Parquet logical type and repetition (`ARROW:schema` hints such as dictionary encoding, fixed_size_list and large/view variants do not change it; list child names and nullability are not significant; date64 equals date32; 2-level list encodings are accepted; an all-null nullable column may use the Arrow `null` type). Columns marked non-nullable contain no nulls. `id`, `collection`, `original_id`, `name`, `material_name`, `license` and non-null `dataset_id` contain no empty or whitespace-only strings. List columns of strings contain no null elements."
+    },
+    {
+      "id": "F3",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "No unknown columns",
+      "text": "Every column is a core column, a column of a declared extension, `extra`, or starts with `x_`. Columns starting with `x_` are flat: primitive types or lists of primitive types, no structs or maps."
+    },
+    {
+      "id": "F4",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Extension column types",
+      "text": "Every extension column, and `extra`, has its defined Arrow type, and each non-null `extra` value is a JSON object."
+    },
+    {
+      "id": "F5",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Identifiers",
+      "text": "`id` is unique within the file and matches `^{collection}:[A-Za-z0-9._~-]{1,200}$`, where `{collection}` is the footer `collection.id`."
+    },
+    {
+      "id": "F6",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Collection column",
+      "text": "`collection` equals the footer `collection.id` on every row."
+    },
+    {
+      "id": "F7",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Vocabularies",
+      "text": "`material_category`, `quantity`, `geometry` and `wavelength_unit` hold values from their vocabularies."
+    },
+    {
+      "id": "F8",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Wavelength axis",
+      "text": "`wavelengths` has at least 2 elements, no nulls, all finite and greater than 0, and is strictly increasing or strictly decreasing."
+    },
+    {
+      "id": "F9",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Values",
+      "text": "`values` has the same length as `wavelengths`. Its elements are finite or NaN: no nulls, no infinities, and no finite value with magnitude above 1e10."
+    },
+    {
+      "id": "F10",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Wavelength extent in nm",
+      "text": "`wavelength_min_nm` and `wavelength_max_nm` equal the minimum and maximum of `wavelengths` converted to nanometres: |a − b| ≤ 1e-6 · max(|a|, |b|)."
+    },
+    {
+      "id": "F11",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Licences",
+      "text": "Every non-empty licence field (the per-row `license` column, footer `collection.license`, and each `datasets.*.license`) is an SPDX license expression, a `LicenseRef-` identifier defined in `collection.license_refs`, or `NOASSERTION` on its own. Operators (AND, OR, WITH) are upper case. Validators check expression syntax and `LicenseRef-` definitions, not the SPDX licence list. Tokens are separated by single spaces or parentheses; no leading or trailing whitespace; no `DocumentRef-`."
+    },
+    {
+      "id": "F12",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Dataset references",
+      "text": "Every non-null `dataset_id` is a key of the footer `datasets` object, and every key of `datasets` is the `dataset_id` of at least one row. Where a dataset gives `spectra_included`, it equals the number of rows with that `dataset_id`."
+    },
+    {
+      "id": "F13",
+      "level": "must",
+      "applies_to": "collection",
+      "title": "Per-band arrays",
+      "text": "`bandpass_fwhm` and `values_stddev`, where present and not null, have the same length as `wavelengths`; their elements are finite and non-negative, or NaN."
+    },
+    {
+      "id": "I1",
+      "level": "must",
+      "applies_to": "index",
+      "title": "Index file",
+      "text": "The file is a valid Parquet file whose footer key `openspeclib_index` validates against `#/$defs/indexFooter`, and which does not also carry `openspeclib`. It meets every requirement of spec section 7: required columns with correct types and no others except `x_`; `file` values are relative paths or http(s) URLs listed in the footer, each file listed once; `id` unique across the index; every row matches exactly one row of its file with equal shared values (`x_` columns not compared; extension columns a file lacks are null); every row of each listed file appears exactly once; `num_spectra`, `metadata` and `sha256` match."
+    },
+    {
+      "id": "R1",
+      "level": "should",
+      "applies_to": "collection",
+      "title": "Sorted with statistics",
+      "text": "Rows are sorted by `id` in ascending byte (UTF-8 code unit) order, and Parquet statistics are written for `id`. Files with no rows are exempt."
+    },
+    {
+      "id": "R2",
+      "level": "should",
+      "applies_to": "collection",
+      "title": "Row group size",
+      "text": "Row groups hold at most 250 spectra."
+    },
+    {
+      "id": "R3",
+      "level": "should",
+      "applies_to": "collection",
+      "title": "Array encoding",
+      "text": "`values`, `wavelengths`, `bandpass_fwhm` and `values_stddev` use BYTE_STREAM_SPLIT encoding on their leaf columns, without dictionary encoding, compressed with zstd."
+    },
+    {
+      "id": "R4",
+      "level": "should",
+      "applies_to": "collection",
+      "title": "Non-empty spectra",
+      "text": "Every spectrum has at least one non-NaN value."
+    },
+    {
+      "id": "R5",
+      "level": "should",
+      "applies_to": "collection",
+      "title": "Known geometry",
+      "text": "At most half of the spectra have `geometry` = `unknown`."
+    },
+    {
+      "id": "Q1",
+      "level": "qa",
+      "applies_to": "collection",
+      "title": "Value scale",
+      "text": "The median of a spectrum's valid values (finite, not a sentinel) lies inside the hard bounds for its quantity. The median may be approximate."
+    },
+    {
+      "id": "Q2",
+      "level": "qa",
+      "applies_to": "collection",
+      "title": "Value bounds",
+      "text": "No valid value lies outside the hard bounds for its quantity. Not reported for spectra that fail Q1."
+    },
+    {
+      "id": "Q3",
+      "level": "qa",
+      "applies_to": "collection",
+      "title": "Suspect values",
+      "text": "Valid values outside the warning bounds are reported as warnings. Not reported for spectra that fail Q1 or Q2."
+    },
+    {
+      "id": "Q4",
+      "level": "qa",
+      "applies_to": "collection",
+      "title": "Plausible wavelength extent",
+      "text": "`wavelength_min_nm` is at least 100 and `wavelength_max_nm` at most 1,000,000 (100 nm to 1 mm). An extent outside this range almost always means a mislabelled `wavelength_unit`."
+    }
+  ],
+  "qa_bounds": {
+    "reflectance": {
+      "hard": [
+        -0.2,
+        1.5
+      ],
+      "warn": [
+        -0.05,
+        1.2
+      ]
+    },
+    "transmittance": {
+      "hard": [
+        -0.2,
+        1.5
+      ],
+      "warn": [
+        -0.05,
+        1.2
+      ]
+    },
+    "emissivity": {
+      "hard": [
+        -0.2,
+        1.5
+      ],
+      "warn": [
+        -0.05,
+        1.05
+      ]
+    },
+    "absorbance": {
+      "hard": [
+        -1.0,
+        5.0
+      ],
+      "warn": [
+        -0.1,
+        3.0
+      ]
+    }
+  },
+  "qa_wavelength_nm": [
+    100,
+    1000000
+  ]
+}

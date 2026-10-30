@@ -1,0 +1,7 @@
+sample,wavelength_um,reflectance,fwhm,mineral,notes
+A-1,2.0,0.5,0.01,Gypsum,
+A-1,2.1,0.55,0.01,Gypsum,
+A-1,2.2,0.6,0.01,Gypsum,
+B-2,2.25,0.35,0.02,Alunite,dry sample
+B-2,2.05,0.3,0.02,Alunite,
+B-2,2.15,0.32,0.02,Alunite,

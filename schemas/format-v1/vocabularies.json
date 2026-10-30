@@ -1,0 +1,52 @@
+{
+  "format_version": "1.0.0",
+  "description": "Controlled vocabularies for the OpenSpecLib Format v1. Normative. Values are case-sensitive.",
+  "quantity": {
+    "reflectance": "Ratio of reflected to incident radiation, or a reflectance factor (ratio to an ideal Lambertian reflector under the same geometry). Which of the two is determined by `geometry`. Dimensionless; nominal range 0 to 1, and reflectance factors may exceed 1.",
+    "transmittance": "Ratio of transmitted to incident radiation. Dimensionless; nominal range 0 to 1.",
+    "emissivity": "Ratio of emitted radiance to that of a blackbody at the same temperature. Dimensionless; nominal range 0 to 1.",
+    "absorbance": "Decadic absorbance A = log10(1/x), where x is the reflectance or transmittance it was derived from. The basis SHOULD be recorded in `measurement_processing` (e.g. \"absorbance_from_reflectance\")."
+  },
+  "geometry": {
+    "bidirectional": "Directional illumination and directional view (BRF/BRDF; Schaepman-Strub et al. 2006, case 1). Goniometric or near-collimated measurements with stated illumination and viewing angles. Older libraries also use the word for laboratory lamp-and-probe setups; those are `biconical`.",
+    "biconical": "Conical illumination and conical view (BCRF; case 5). Laboratory measurements with a lamp and a fore-optic, contact probe, leaf clip or FTIR reflectance attachment, including those that older libraries call 'bidirectional'.",
+    "directional_hemispherical": "Directional illumination, hemispherical collection (DHR, 'black-sky albedo'; case 3). Laboratory spectrometers with an integrating sphere.",
+    "hemispherical_directional": "Hemispherical illumination, directional view (HDRF; case 7). Field measurements under sky illumination with a narrow field of view.",
+    "hemispherical_conical": "Hemispherical illumination, conical view (HCRF; case 8). Field spectroradiometer measurements under sky illumination with a fore-optic.",
+    "bihemispherical": "Hemispherical illumination and hemispherical collection (BHR; case 9). Under isotropic illumination this is the 'white-sky albedo'. Also used for laboratory measurements of rock surfaces placed directly over an integrating-sphere port when the source describes them as BHR.",
+    "directional": "Directional quantity without an illumination geometry, e.g. directional emissivity.",
+    "unknown": "The source does not state the geometry. Use this rather than guessing."
+  },
+  "wavelength_unit": {
+    "nm": "Nanometres (wavelength).",
+    "um": "Micrometres (wavelength).",
+    "cm-1": "Reciprocal centimetres (wavenumber). Axes in cm-1 are usually stored in ascending wavenumber order, which is descending wavelength."
+  },
+  "material_category": {
+    "mineral": "A single mineral species or mineral group.",
+    "rock": "A rock: an aggregate of minerals.",
+    "soil": "Soil or regolith, including soil horizons.",
+    "vegetation": "Living or fresh plant material: leaves, canopies, flowers.",
+    "npv": "Non-photosynthetic vegetation: dry plant matter, bark, wood, litter.",
+    "water": "Liquid water bodies or water samples.",
+    "snow_ice": "Snow, firn or ice.",
+    "man_made": "Manufactured materials: paints, plastics, building materials, fabrics.",
+    "meteorite": "Meteorite samples.",
+    "lunar": "Lunar samples, including returned regolith and rocks.",
+    "organic_compound": "Isolated organic chemicals and biochemicals.",
+    "mixture": "Physical, synthetic or simulated mixtures of materials from different categories.",
+    "other": "Anything not covered above. Use `material_subcategory` to say what it is."
+  },
+  "extension": {
+    "material": "Additional material description: subcategory, formula, keywords.",
+    "sample": "Physical sample description and provenance.",
+    "measurement": "Instrument, laboratory and acquisition context.",
+    "bandpass": "Per-band spectral bandpass (full width at half maximum).",
+    "uncertainty": "Per-band standard deviation of the values.",
+    "quality": "Free-text quality notes."
+  },
+  "inclusion": {
+    "complete": "The collection contains every spectrum the source publishes.",
+    "subset": "The collection deliberately contains a subset of the source. `inclusion_notes` MUST say how it was chosen."
+  }
+}

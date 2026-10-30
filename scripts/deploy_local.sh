@@ -11,7 +11,7 @@
 #
 # Usage:
 #   scripts/deploy_local.sh                  # build + serve at http://localhost:4173
-#   scripts/deploy_local.sh --tag v0.0.6     # pin a specific release
+#   scripts/deploy_local.sh --tag v0.2.0     # pin a specific release
 #   scripts/deploy_local.sh --no-serve       # just build, don't run preview
 #   scripts/deploy_local.sh --refetch        # force re-download release data
 #   scripts/deploy_local.sh --skip-data      # skip release download (use existing public/data)
@@ -21,7 +21,10 @@
 set -euo pipefail
 
 REPO="null-jones/openspeclib"
-DEFAULT_TAG="v0.0.6"
+# The viewer serves one data release, set by OPENSPECLIB_VERSION in
+# viewer/src/constants/urls.ts (the deploy workflow reads the same constant).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DEFAULT_TAG="v$(sed -nE "s/^export const OPENSPECLIB_VERSION = '([^']+)';/\1/p" "$SCRIPT_DIR/../viewer/src/constants/urls.ts")"
 TAG="$DEFAULT_TAG"
 REFETCH=0
 SKIP_DATA=0
@@ -75,14 +78,14 @@ if [[ $SKIP_DATA -eq 1 ]]; then
     echo "==> Skipping release data download (--skip-data)"
 elif [[ $REFETCH -eq 1 ]]; then
     echo "==> Force-refetching $TAG release artifacts into $DATA_DIR"
-    rm -f "$DATA_DIR"/*.json "$DATA_DIR"/*.parquet "$DATA_DIR"/checksums.txt
+    rm -f "$DATA_DIR"/*.json "$DATA_DIR"/*.parquet "$DATA_DIR"/*.csv "$DATA_DIR"/checksums.txt
     gh release download "$TAG" --repo "$REPO" \
-        --pattern "*.json" --pattern "*.parquet" --pattern "checksums.txt" \
-        --dir "$DATA_DIR"
+        --pattern "*.parquet" --pattern "id-migration.csv" --pattern "checksums.txt" \
+        --dir "$DATA_DIR" --clobber
 else
     echo "==> Ensuring $TAG release artifacts in $DATA_DIR (skip-existing)"
     gh release download "$TAG" --repo "$REPO" \
-        --pattern "*.json" --pattern "*.parquet" --pattern "checksums.txt" \
+        --pattern "*.parquet" --pattern "id-migration.csv" --pattern "checksums.txt" \
         --dir "$DATA_DIR" --skip-existing
 fi
 

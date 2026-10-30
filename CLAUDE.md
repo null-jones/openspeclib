@@ -2,28 +2,37 @@
 
 ## Project Overview
 
-OpenSpecLib is a Python toolkit that ingests spectral libraries (USGS Speclib 07, ECOSTRESS, RELAB, ASU TES, Bishop) into a unified data structure, validates it, and packages it for release. The catalog is JSON; spectral data is stored as one Apache Parquet file per source (zstd-compressed, row-grouped for partial Range-request reads) — category filtering is a column predicate, not a file selection.
+OpenSpecLib is an open file format for spectral libraries (the OpenSpecLib Format, spec version 1.0.0), a curated collection of public spectral libraries published in it, the `openspeclib` Python toolkit, and a browser viewer (`viewer/`).
+
+In Format v1 each collection is one self-describing Apache Parquet file: one row per spectrum, inline `wavelengths` and `values`, flat snake_case columns, and the collection's provenance, licences and citations as JSON under the `openspeclib` footer key. An optional index file (`openspeclib-index.parquet`) lists every spectrum's metadata without the arrays. A release directory (= `openspeclib combine` output) is flat: `{collection}.parquet` files, the index, `id-migration.csv`, `checksums.txt` (plus `validation-report.json` from the release workflow). Releases bundle USGS (`usgs_splib07`), ECOSTRESS and EcoSIS; loaders also exist for RELAB, ASU TES, Bishop and OSSL.
 
 ## Repository Structure
 
-- `src/openspeclib/models.py` — Pydantic models defining the in-memory data structure (single source of truth)
-- `src/openspeclib/storage.py` — Parquet per-source file I/O (`ARROW_SCHEMA`, `write_source`, `read_chunk`, `iter_records`, `validate_parquet_schema`)
-- `src/openspeclib/loaders/` — Per-source parsers (usgs.py, ecostress.py, relab.py, asu_tes.py, bishop.py)
-- `src/openspeclib/combine.py` — Merges sources into master library (one Parquet per source + JSON catalog)
-- `src/openspeclib/validate.py` — Schema + semantic validation
-- `src/openspeclib/cli.py` — Click CLI (download, ingest, combine, validate)
-- `schemas/` — `catalog.schema.json`, `spectrum.schema.json`, `library.arrow.schema.json` (generated), and `library.parquet-schema.md` (human-readable chunk reference)
-- `tests/` — pytest tests with fixture data in `tests/fixtures/`
-- `docs/` — Documentation (data-structure, pipeline, provenance, adding-sources)
+- `docs/spec/format-v1.md` + `schemas/format-v1/*.json` — the normative specification (columns, vocabularies, footer schema, rules and quality bounds). Changed only through an RFC (`docs/rfcs/`); never edit them to match the code — fix the code
+- `docs/spec/collections.md` — collection id registry
+- `src/openspeclib/models.py` — Pydantic models: `SpectrumRecord` (one row), `CollectionInfo`, `DatasetInfo`, vocabularies as enums
+- `src/openspeclib/storage.py` — all collection/index file I/O (`write_collection`, `write_rows`, `write_index`, `read_footer`, `read_index_footer`, `iter_records`). The writer runs the conformance checker on every file and refuses to keep a non-conformant one
+- `src/openspeclib/conformance.py` — reference conformance checker (rules F1–F13, I1, R1–R5)
+- `src/openspeclib/validate.py` — `openspeclib validate`: profiles `format` and `openspeclib` (adds quality rules Q1–Q4), allowlist, report. `validation_allowlist.json` is the shipped allowlist
+- `src/openspeclib/reader.py` — fast read API: `openspeclib.open`, `openspeclib.open_index` (local via pyarrow, http(s) via DuckDB)
+- `src/openspeclib/combine.py` — builds the release directory from ingested `{collection}.jsonl` + `{collection}.collection.json`
+- `src/openspeclib/convert/` — `openspeclib convert` (ENVI/CSV → Format v1) and `openspeclib export` (→ ENVI/CSV)
+- `src/openspeclib/loaders/` — one loader per source (usgs.py, ecostress.py, ecosis.py, ossl.py, relab.py, asu_tes.py, bishop.py), shared helpers in base.py. `usgs_geometry.py` holds the USGS geometry rules and their DS1035 evidence; `ecosis_datasets.json` is the EcoSIS inclusion/setup policy; `ecosis_scales.py` the EcoSIS scale inference and masking
+- `src/openspeclib/cli.py` — Click CLI: download, ingest, combine, validate, convert, export
+- `scripts/generate_schemas.py` — checks the code against `schemas/format-v1/` (writes nothing); `scripts/publish_huggingface.py` — Hugging Face mirror
+- `tests/` — pytest, fixtures in `tests/fixtures/`, conformance fixtures in `tests/conformance/`. `tests/test_readme.py` runs the code blocks in README.md and docs/reading.md marked `<!-- readme-test: python… -->` / `<!-- readme-test: sql… -->` against a tiny built release
+- `docs/` — reading, data-structure, processing-pipeline, validation, converting, ecosis-curation, provenance, licensing, adding-sources, publishing
 
 ## Key Commands
 
 ```bash
-pip install -e ".[dev]"              # Install with all dependencies
+pip install -e ".[dev]"              # Install with all dependencies (includes duckdb)
 pytest tests/ -v                     # Run tests
 black src/ tests/ scripts/           # Format code
 ruff check src/ tests/               # Lint (style, docstrings, type annotations)
-python scripts/generate_schemas.py   # Regenerate JSON schemas
+mypy src/openspeclib/                # Strict type checking
+python scripts/generate_schemas.py   # Check code against schemas/format-v1 (exits non-zero on drift)
+openspeclib validate PATH --profile openspeclib   # Conformance + quality profile
 ```
 
 ## Development Standards
@@ -72,9 +81,16 @@ python scripts/generate_schemas.py   # Regenerate JSON schemas
 
 ## Conventions
 
-- Pydantic models in `models.py` are authoritative — JSON schemas are derived from them
-- Loaders yield `SpectrumRecord` via generators for memory efficiency
-- Wavelengths are stored in native units (um, nm, cm-1) — never convert during ingest
-- Source-specific metadata goes in `additional_properties`, not new schema fields
-- All per-source Parquet file I/O goes through `openspeclib.storage` — never read or write them directly outside that module
-- All tests, formatting, and lint checks should pass before any changes are committed
+- The specification (`docs/spec/format-v1.md`, `schemas/format-v1/`) is normative; the code follows it
+- All collection and index file I/O goes through `openspeclib.storage`; never write the Parquet files directly. The writer refuses non-conformant output (`NonConformantFileError`) — fix the records, do not bypass the check
+- Loaders yield `SpectrumRecord` via generators; ids are `{collection}:{local_id}` built with `loaders.base.spectrum_id`, and `original_id` keeps the upstream id unchanged
+- Wavelengths are stored in native units (`nm`, `um`, `cm-1`) — never convert or resample during ingest
+- Missing or invalid bands are NaN in `values` — never keep source sentinels (e.g. `-1.23e34`); use `loaders.base.mask_invalid_values`
+- Reflectance, transmittance and emissivity are fractions (0–1 nominal); loaders divide at ingest using the scale the source states and record the divisor in `extra["source_reflectance_divisor"]` (`openspeclib convert` writes the same key and renames the legacy `source_value_divisor` on re-import). Absorbance is decadic and not rescaled
+- `quantity` and `geometry` are set only from documented evidence (headers, source documentation, package metadata), and the evidence is recorded (e.g. `extra["geometry_rule"]` in USGS, `setup.evidence` in `ecosis_datasets.json`). Otherwise geometry is `unknown` — never guess. Lab lamp-and-probe "bidirectional" measurements are `biconical`
+- Modelled or computed spectra get `simulated` in `measurement_processing`
+- Source-specific metadata goes in `extra`, not new columns
+- Validation is strict. Quality issues (Q1–Q4) can be waived only by an entry in `src/openspeclib/validation_allowlist.json` with a written reason; Q1 (`value_scale`) and Q4 (`wavelength_extent`) only by exact id; an `id_prefix` must reach past `{collection}:`; conformance rules are never waivable
+- Loaders report skips that make output incomplete via `BaseLoader.fatal_error_count`; `openspeclib ingest` then removes its output and exits 1
+- Spectrum counts appear in exactly one README table (marked `<!-- counts: updated at release build -->`); do not repeat counts in other docs. CHANGELOG.md is exempt: its entries record counts as of each release
+- All tests, formatting, lint and type checks should pass before any changes are committed

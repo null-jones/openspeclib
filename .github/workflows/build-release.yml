@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release version (semver, e.g., 1.0.0)"
+        description: "Release version (semver, e.g. 0.2.0). Must equal the openspeclib package version."
         required: true
         type: string
       sources:
-        description: "Comma-separated sources to include (usgs,ecostress,relab,asu_tes,bishop,ecosis or all)"
+        description: "Comma-separated sources to include (usgs,ecostress,ecosis,relab,asu_tes,bishop,ossl), or 'all' for the released sources (usgs,ecostress,ecosis)"
         required: false
         default: "all"
         type: string
@@ -19,7 +19,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 180
 
     steps:
       - name: Checkout repository
@@ -34,6 +34,19 @@ jobs:
       - name: Install openspeclib
         run: pip install -e ".[build,dev]"
 
+      - name: Check release version matches the package
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          python - <<'PY'
+          import os, sys
+          import openspeclib
+          want = os.environ["RELEASE_VERSION"]
+          if openspeclib.__version__ != want:
+              sys.exit(f"Release {want} does not match package version {openspeclib.__version__}; bump pyproject.toml first.")
+          print(f"Building release {want}")
+          PY
+
       - name: Run tests
         run: pytest tests/ -v
 
@@ -41,10 +54,23 @@ jobs:
         id: sources
         run: |
           if [ "${{ inputs.sources }}" = "all" ]; then
-            echo "list=usgs,ecostress,relab,asu_tes,bishop,ecosis" >> "$GITHUB_OUTPUT"
+            # Only the collections OpenSpecLib releases; reserved sources (relab,
+            # asu_tes, bishop, ossl) ship only when named explicitly.
+            echo "list=usgs,ecostress,ecosis" >> "$GITHUB_OUTPUT"
           else
             echo "list=${{ inputs.sources }}" >> "$GITHUB_OUTPUT"
           fi
+
+      # Restore cached raw data BEFORE downloading: the downloaders skip
+      # complete files, so a warm cache avoids re-fetching EcoSIS (~1,000
+      # rate-limited API requests).
+      - name: Restore cached raw source data
+        uses: actions/cache@v4
+        with:
+          path: ./raw
+          key: raw-sources-${{ hashFiles('src/openspeclib/loaders/*.py', 'src/openspeclib/loaders/*.json') }}
+          restore-keys: |
+            raw-sources-
 
       - name: Download source libraries
         run: |
@@ -52,26 +78,11 @@ jobs:
           for source in "${SOURCES[@]}"; do
             source=$(echo "$source" | xargs)
             echo "::group::Downloading $source"
+            # relab, asu_tes and bishop need manual placement; their
+            # download step prints instructions and leaves the directory empty.
             openspeclib download --source "$source" --target "./raw/$source"
             echo "::endgroup::"
           done
-        # Sources requiring manual download (relab, asu_tes, bishop)
-        # will create empty directories and print instructions.
-        # Upload pre-downloaded archives as workflow artifacts or use the
-        # data_dir input to point at a pre-populated directory.
-
-      - name: Restore manual-download sources (if cached)
-        uses: actions/cache@v4
-        with:
-          path: |
-            ./raw/ecostress
-            ./raw/relab
-            ./raw/asu_tes
-            ./raw/bishop
-            ./raw/ecosis
-          key: spectral-data-manual-${{ hashFiles('src/openspeclib/loaders/*.py') }}
-          restore-keys: |
-            spectral-data-manual-
 
       - name: Ingest source libraries
         run: |
@@ -80,125 +91,102 @@ jobs:
           for source in "${SOURCES[@]}"; do
             source=$(echo "$source" | xargs)
             input_dir="./raw/$source"
-
-            # Check if the source directory has any data files
-            file_count=$(find "$input_dir" -type f \( -name "*.txt" -o -name "*.csv" -o -name "*.asc" -o -name "*.tab" -o -name "*.spectrum.txt" -o -name "*.json" \) 2>/dev/null | head -1 | wc -l)
+            file_count=$(find "$input_dir" -type f \( -name "*.txt" -o -name "*.csv" -o -name "*.asc" -o -name "*.tab" -o -name "*.json" \) 2>/dev/null | head -1 | wc -l)
+            # A requested source that yields nothing fails the build: a
+            # release must never silently lose a collection.
             if [ "$file_count" -eq 0 ]; then
-              echo "::warning::Skipping $source — no data files found in $input_dir (manual download required)"
-              continue
+              echo "::error::No data files found for $source in $input_dir (manual download required)"
+              exit 1
             fi
-
+            before=$(find ./processed/ -name "*.jsonl" | wc -l)
             echo "::group::Ingesting $source"
+            # ingest exits non-zero when a loader rejects files, failing the build.
             openspeclib ingest --source "$source" --input "$input_dir" --output ./processed/
             echo "::endgroup::"
+            after=$(find ./processed/ -name "*.jsonl" | wc -l)
+            if [ "$after" -le "$before" ]; then
+              echo "::error::Ingesting $source produced no spectra"
+              exit 1
+            fi
           done
 
       - name: Check for processed data
         run: |
           jsonl_count=$(find ./processed/ -name "*.jsonl" 2>/dev/null | wc -l)
           if [ "$jsonl_count" -eq 0 ]; then
-            echo "::error::No sources were successfully ingested. Ensure at least one source has data available."
+            echo "::error::No sources were successfully ingested."
             exit 1
           fi
           echo "Found $jsonl_count ingested source(s)"
 
-      - name: Combine into master library
-        run: openspeclib combine --input ./processed/ --output ./library/
+      - name: Build release directory (Format v1)
+        run: openspeclib combine --input ./processed/ --output ./library/ --release "${{ inputs.version }}"
 
-      - name: Validate library
-        run: openspeclib validate ./library/
+      - name: Validate (conformance + OpenSpecLib quality profile)
+        run: openspeclib validate ./library/ --profile openspeclib --report validation-report.json
 
-      - name: Package release artifacts
+      - name: Add validation report to the release assets
         run: |
-          # Catalog-only package for lightweight use
-          cp library/catalog.json openspeclib-catalog-${{ inputs.version }}.json
-
-          # Collect per-source Parquet files as flat release assets. Filenames
-          # are already unique by source (spectra/<source>.parquet), so no
-          # renaming is needed.
-          mkdir -p release-parquet
-          for f in library/spectra/*.parquet; do
-            cp "$f" "release-parquet/$(basename "$f")"
-          done
-
-          # Compute checksums for catalog + all parquet assets
-          sha256sum openspeclib-catalog-${{ inputs.version }}.json > checksums.txt
-          for f in release-parquet/*.parquet; do
-            sha256sum "$f" | sed "s|release-parquet/||" >> checksums.txt
-          done
+          cp validation-report.json library/
+          (cd library && sha256sum validation-report.json >> checksums.txt)
+          (cd library && sha256sum --check --strict checksums.txt)
 
       - name: Generate release notes
-        id: notes
         env:
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           python - <<'PY'
-          import json
           import os
+          from openspeclib import storage
 
           version = os.environ["RELEASE_VERSION"]
-          catalog = json.load(open("library/catalog.json"))
-          total = catalog["statistics"]["total_spectra"]
-          sources_list = "\n".join(
-              f"- **{info['name']}** (v{info['version']}): {info['spectrum_count']} spectra"
-              for info in catalog["sources"].values()
-          )
-
-          parquet_assets = "\n".join(
-              f"- `{name}.parquet` — {info['spectrum_count']} spectra from {info['name']}"
-              for name, info in catalog["sources"].items()
-              if info["spectrum_count"] > 0
+          repo = os.environ.get("GITHUB_REPOSITORY", "null-jones/openspeclib")
+          base = f"https://github.com/{repo}/releases/download/v{version}"
+          blob = f"https://github.com/{repo}/blob/v{version}"
+          index = storage.read_index_footer("library/openspeclib-index.parquet")
+          entries = index["collections"]
+          total = sum(e["num_spectra"] for e in entries)
+          collections = "\n".join(
+              f"- `{e['file']}`: {e['num_spectra']:,} spectra from {e['metadata']['collection']['title']}"
+              f" ({e['metadata']['collection']['inclusion']})"
+              for e in entries
           )
 
           notes = f"""## OpenSpecLib v{version}
 
-          Amalgamated spectral library containing **{total} spectra** from the following sources:
+          {total:,} spectra in [OpenSpecLib Format]({blob}/docs/spec/format-v1.md) {index['format_version']}.
 
-          {sources_list}
+          ### Assets
 
-          ### Artifacts
+          Download all files into one directory.
 
-          - `openspeclib-catalog-{version}.json` — Catalog (metadata index, no spectral arrays)
-          - One Parquet file per source (row-grouped for partial HTTP Range reads):
-          {parquet_assets}
-          - `checksums.txt` — SHA-256 checksums for all of the above
+          {collections}
+          - `openspeclib-index.parquet`: every spectrum's metadata, without arrays, for fast search
+          - `id-migration.csv`: maps spectrum ids from releases up to v0.0.7 to the ids used now
+          - `validation-report.json`: the conformance and quality report for this release
+          - `checksums.txt`: SHA-256 checksums of the files above
 
-          ### Usage
+          Each collection file is self-describing: wavelengths, values, licences and citations are all inside it.
+          Licences differ between collections and, for EcoSIS, between datasets. Each spectrum's `license`
+          column and the file footer say what applies.
 
-          Read the catalog for metadata queries:
-          ```python
-          import json, urllib.request
-          url = "https://github.com/<owner>/<repo>/releases/download/v{version}/openspeclib-catalog-{version}.json"
-          catalog = json.load(urllib.request.urlopen(url))
-          print(f"Total spectra: {{catalog['statistics']['total_spectra']}}")
-          ```
+          ### Read one spectrum over HTTP
 
-          Per-source files are **Apache Parquet (zstd-compressed)** with one row per spectrum
-          and dot-separated columns (e.g. `material.name`, `spectral_data.wavelengths`).
-          Each source is a single file — category filtering is a column predicate, not a
-          file selection. Read directly from the release URL:
-          ```python
-          import pyarrow.parquet as pq, pyarrow.fs as pafs
-          # pyarrow supports HTTP(S) sources; reads only the row groups matching your query
-          table = pq.read_table(
-              "https://github.com/<owner>/<repo>/releases/download/v{version}/usgs_splib07.parquet",
-              filters=[("material.category", "=", "mineral")],
-          )
-          ```
-
-          Or query with DuckDB directly over HTTP (httpfs extension reads Parquet footers
-          and row groups via Range requests, no full download):
           ```sql
           INSTALL httpfs; LOAD httpfs;
-          SELECT id, "material.name"
-          FROM 'https://github.com/<owner>/<repo>/releases/download/v{version}/usgs_splib07.parquet'
-          WHERE "material.category" = 'mineral'
-            AND "spectral_data.wavelength_min" < 0.4;
+          SELECT id, material_name, quantity, geometry, wavelength_unit, wavelengths, "values"
+          FROM '{base}/usgs_splib07.parquet'
+          WHERE id = 'usgs_splib07:splib07a_Kaolinite_CM9_BECKb_AREF';
           ```
 
-          See [docs/data-structure.md](docs/data-structure.md) and
-          [schemas/library.parquet-schema.md](schemas/library.parquet-schema.md) for the
-          full schema specification and column reference.
+          Query one id per `WHERE id = …`: DuckDB then reads a single row group. An `id IN (…)` list reads the whole file.
+
+          Or with Python: `pip install "openspeclib[remote] @ git+https://github.com/{repo}.git@v{version}"`, then `openspeclib.open_index("{base}/openspeclib-index.parquet")`.
+
+          Check any file against the standard with `openspeclib validate FILE --profile format`.
+
+          See the [README]({blob}/README.md), the [format specification]({blob}/docs/spec/format-v1.md)
+          and the [changelog]({blob}/CHANGELOG.md).
           """
           open("release_notes.md", "w").write(notes)
           PY
@@ -210,20 +198,9 @@ jobs:
           name: OpenSpecLib v${{ inputs.version }}
           body_path: release_notes.md
           files: |
-            openspeclib-catalog-${{ inputs.version }}.json
-            release-parquet/*.parquet
-            checksums.txt
+            library/*.parquet
+            library/id-migration.csv
+            library/validation-report.json
+            library/checksums.txt
           draft: false
           prerelease: false
-
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - run: pip install -e ".[dev]"
-      - run: pytest tests/ -v
-      - run: ruff check src/ tests/

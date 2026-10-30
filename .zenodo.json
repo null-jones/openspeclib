@@ -1,0 +1,28 @@
+{
+  "title": "OpenSpecLib: an open format and toolkit for spectral libraries",
+  "upload_type": "software",
+  "description": "<p>OpenSpecLib is a Python toolkit that ingests public spectral libraries (USGS Spectral Library Version 7, ECOSTRESS, EcoSIS and others), validates them, and publishes them in the OpenSpecLib Format: one self-describing Apache Parquet file per collection, with inline wavelength axes, required quantity and measurement geometry, NaN for missing values, and SPDX licences.</p><p>This archive is a snapshot of the source repository at a tagged release: the code (MIT licence), the format specification, its machine-readable schemas, and the documentation. The spectral data files are published as GitHub release assets and on Hugging Face; each collection keeps the licence of its source library, recorded in the file's footer metadata.</p>",
+  "creators": [
+    {
+      "name": "Jones, Ellie"
+    }
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "keywords": [
+    "spectral library",
+    "spectroscopy",
+    "reflectance",
+    "remote sensing",
+    "hyperspectral",
+    "Apache Parquet",
+    "data standard"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/null-jones/openspeclib/blob/v0.2.0/docs/spec/format-v1.md",
+      "relation": "isDocumentedBy",
+      "resource_type": "publication-standard"
+    }
+  ]
+}

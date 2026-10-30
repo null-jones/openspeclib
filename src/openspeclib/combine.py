@@ -1,273 +1,313 @@
-"""Combiner: merges processed spectral sources into a master library.
+"""Combiner: builds an OpenSpecLib release directory from ingested collections.
 
-Orchestrates the full pipeline of loading records from each source,
-writing one Parquet file per source (with row-group-based partial reads),
-and building the catalog index. Also generates ``licenses.json`` alongside
-the catalog for easy consumption by web applications.
+``openspeclib combine`` writes a flat directory identical to the published
+release layout:
+
+* ``{collection_id}.parquet`` — one Format v1 collection file per source;
+* ``openspeclib-index.parquet`` — the index over all of them (spec section 7),
+  whose footer ``release`` is the release version;
+* ``id-migration.csv`` — ``old_id,new_id`` for every spectrum whose id
+  changed from the v0 layout (``{library}:{original_id}``, and
+  ``ecosis:{dataset_id}:{spectrum_id}`` for EcoSIS);
+* ``checksums.txt`` — ``sha256  filename`` for every other file.
+
+Collection and dataset metadata (licences, citations, inclusion) come from
+each collection's ``{collection}.collection.json`` written by ``ingest``.
 """
 
+from __future__ import annotations
+
+import csv
+import hashlib
+import json
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
-from openspeclib import __version__, storage
-from openspeclib.models import (
-    CatalogFile,
-    CatalogRecord,
-    CatalogStatistics,
-    DatasetLicenseEntry,
-    LicenseEntry,
-    LicensesFile,
-    SourceInfo,
-    SpectrumRecord,
-)
+from openspeclib import storage
+from openspeclib.models import LOCAL_ID_MAX_LENGTH, CollectionMetadata, SpectrumRecord
 
 logger = logging.getLogger(__name__)
 
-_LICENSES_NOTICE = (
-    "Licensing terms differ between source spectral libraries. "
-    "Users must review and comply with the license for each source library "
-    "from which they use data. The 'license' field for each source below "
-    "summarises the terms; consult the source URL for full details."
-)
-
-# Extra license/citation metadata not carried on the per-spectrum Source model.
-# Keyed by SourceLibrary enum value (e.g. "usgs_splib07").
-_SOURCE_EXTRA: dict[str, dict[str, str | None]] = {
-    "usgs_splib07": {
-        "license_url": None,
-        "citation_doi": "10.3133/ds1035",
-    },
-    "ecostress": {
-        "license_url": None,
-        "citation_doi": "10.1016/j.rse.2019.05.015",
-    },
-    "relab": {
-        "license_url": None,
-        "citation_doi": None,
-    },
-    "asu_tes": {
-        "license_url": None,
-        "citation_doi": "10.1029/1999JE001138",
-    },
-    "bishop": {
-        "license_url": None,
-        "citation_doi": "10.1180/claymin.2008.043.1.03",
-    },
-    "ecosis": {
-        "license_url": "https://ecosis.org",
-        "citation_doi": None,
-    },
-    "ossl": {
-        "license_url": "https://creativecommons.org/licenses/by/4.0/",
-        "citation_doi": "10.1371/journal.pone.0296545",
-    },
-}
+ID_MIGRATION_FILENAME = "id-migration.csv"
+CHECKSUMS_FILENAME = "checksums.txt"
 
 
-def _build_dataset_license_entries(
-    rollup: dict[str, tuple[SpectrumRecord, int]],
-) -> dict[str, DatasetLicenseEntry] | None:
-    """Convert a per-source dataset rollup into ``DatasetLicenseEntry`` records.
+def legacy_id(record: SpectrumRecord) -> str:
+    """Reproduce the v0 (OpenSpecLib 0.1) id of a record.
+
+    v0 ids were ``{library}:{original_id}`` for every source except EcoSIS
+    (``ecosis:{dataset_id}:{spectrum_id}``) and OSSL
+    (``ossl:{layer_uuid}:{vnir|mir}``, VNIR being reflectance).
 
     Args:
-        rollup: Mapping of ``dataset_id`` to ``(first_record_seen, count)``.
+        record: A v1 record.
 
     Returns:
-        Mapping of ``dataset_id`` to ``DatasetLicenseEntry`` ordered by
-        descending spectrum count, or ``None`` when the rollup is empty
-        (monolithic sources).
+        The id the same spectrum had in v0.
     """
-    if not rollup:
-        return None
-    items = sorted(rollup.items(), key=lambda kv: (-kv[1][1], kv[0]))
-    result: dict[str, DatasetLicenseEntry] = {}
-    for dataset_id, (record, count) in items:
-        ds = record.source.dataset
-        if ds is None:
+    if record.collection == "ecosis" and record.dataset_id:
+        return f"ecosis:{record.dataset_id}:{record.original_id}"
+    if record.collection == "ossl":
+        technique = "vnir" if record.measurement.quantity.value == "reflectance" else "mir"
+        return f"ossl:{record.original_id}:{technique}"
+    return f"{record.collection}:{record.original_id}"
+
+
+def _row_digest(row: storage.SpectrumRow) -> str:
+    """Hash a row's content, excluding its id, as a final collision tie-breaker.
+
+    Args:
+        row: A collection row.
+
+    Returns:
+        The SHA-256 hex digest of the row's metadata (as sorted JSON, without
+        ``id``) and array bytes. Rows with equal digests are identical, so their
+        relative order does not affect the output.
+    """
+    digest = hashlib.sha256()
+    meta = {k: v for k, v in row.meta.items() if k != "id"}
+    digest.update(json.dumps(meta, sort_keys=True, default=str).encode("utf-8"))
+    for name in ("wavelengths", "values", "bandpass_fwhm", "values_stddev"):
+        array = row.array(name)
+        digest.update(name.encode("ascii"))
+        if array is not None:
+            digest.update(array.tobytes())
+    return digest.hexdigest()
+
+
+def resolve_id_collisions(rows: list[storage.SpectrumRow], order: list[str]) -> int:
+    """Make spectrum ids unique by suffixing colliding ones with ``~2``, ``~3``, ….
+
+    Sanitising upstream ids (see :func:`openspeclib.loaders.base.make_local_id`)
+    can map two upstream ids to one local id. Within each group of rows
+    sharing an id, a row whose original id *is* the local id (it needed no
+    sanitising) ranks first; the rest are ranked by ``(original_id,
+    dataset_id, order)``, and rows equal in all of these by a digest of their
+    content (:func:`_row_digest`), never by input order. The first keeps the id
+    and the others get the next free ``~N`` suffix (the local part is shortened
+    so the id stays within 200 characters).
+    The result depends only on the records, so rebuilding from the same raw
+    data gives the same ids whatever order the records arrive in.
+
+    Args:
+        rows: The rows of one collection; ids are changed in place.
+        order: A per-row tie-breaker (e.g. the v0 id), aligned with ``rows``.
+
+    Returns:
+        The number of ids changed.
+    """
+    groups: dict[str, list[int]] = defaultdict(list)
+    for i, row in enumerate(rows):
+        groups[row.id].append(i)
+    taken = set(groups)
+    changed = 0
+    for base in sorted(groups):
+        members = groups[base]
+        if len(members) == 1:
             continue
-        result[dataset_id] = DatasetLicenseEntry(
-            id=ds.id,
-            title=ds.title,
-            url=ds.url,
-            license=ds.license,
-            license_url=ds.license_url,
-            citation=ds.citation,
-            citation_doi=ds.citation_doi,
-            authors=ds.authors,
-            organization=ds.organization,
-            spectrum_count=count,
+        _, base_local = base.split(":", 1)
+        members.sort(
+            key=lambda i: (
+                # A row that needed no sanitising keeps the plain id.
+                str(rows[i].meta["original_id"]) != base_local,
+                str(rows[i].meta["original_id"]),
+                str(rows[i].meta.get("dataset_id") or ""),
+                order[i],
+                _row_digest(rows[i]),
+            )
         )
-    return result or None
+        prefix, local = base.split(":", 1)
+        n = 2
+        for i in members[1:]:
+            while True:
+                suffix = f"~{n}"
+                candidate = f"{prefix}:{local[: LOCAL_ID_MAX_LENGTH - len(suffix)]}{suffix}"
+                n += 1
+                if candidate not in taken:
+                    break
+            taken.add(candidate)
+            rows[i].meta["id"] = candidate
+            changed += 1
+    return changed
+
+
+@dataclass
+class CollectionBuild:
+    """Result of building one collection file.
+
+    Attributes:
+        collection_id: The collection id.
+        path: The written file.
+        num_spectra: Rows written.
+        collisions: Ids changed to resolve collisions.
+        migrations: ``(old_id, new_id)`` for every spectrum whose id changed
+            from v0.
+    """
+
+    collection_id: str
+    path: Path
+    num_spectra: int
+    collisions: int
+    migrations: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class LibraryBuild:
+    """Result of building a release directory.
+
+    Attributes:
+        output_dir: The release directory.
+        release: The release version recorded in the index.
+        collections: One build result per collection.
+        index_path: The index file.
+        files: Every file written except ``checksums.txt``.
+    """
+
+    output_dir: Path
+    release: str
+    collections: list[CollectionBuild]
+    index_path: Path
+    files: list[Path]
+
+    @property
+    def total_spectra(self) -> int:
+        """Return the number of spectra across all collections."""
+        return sum(c.num_spectra for c in self.collections)
+
+
+def build_collection(
+    records: Iterable[SpectrumRecord],
+    metadata: CollectionMetadata,
+    output_dir: Path,
+    *,
+    created: str | None = None,
+) -> CollectionBuild:
+    """Write one collection file, resolving id collisions.
+
+    Args:
+        records: The collection's records.
+        metadata: Its footer collection and datasets.
+        output_dir: Directory to write ``{collection_id}.parquet`` into.
+        created: RFC 3339 creation timestamp for the footer.
+
+    Returns:
+        The build result.
+
+    Raises:
+        ValueError: If a record belongs to another collection, or the
+            collection has no records.
+    """
+    collection = metadata.collection
+    interner = storage.AxisInterner()
+    rows: list[storage.SpectrumRow] = []
+    old_ids: list[str] = []
+    for record in records:
+        if record.collection != collection.id:
+            raise ValueError(
+                f"record {record.id} belongs to {record.collection!r}, not {collection.id!r}"
+            )
+        rows.append(storage.record_to_row(record, interner))
+        old_ids.append(legacy_id(record))
+    collisions = resolve_id_collisions(rows, old_ids)
+    if collisions:
+        logger.info("%s: resolved %d id collisions", collection.id, collisions)
+    migrations = sorted((old, row.id) for old, row in zip(old_ids, rows) if old != row.id)
+    path = output_dir / f"{collection.id}.parquet"
+    result = storage.write_rows(rows, path, collection, metadata.datasets, created=created)
+    return CollectionBuild(
+        collection_id=collection.id,
+        path=path,
+        num_spectra=result.num_spectra,
+        collisions=collisions,
+        migrations=migrations,
+    )
+
+
+def _write_migrations(path: Path, builds: Iterable[CollectionBuild]) -> None:
+    """Write ``id-migration.csv``.
+
+    Args:
+        path: Destination file.
+        builds: Collection builds whose migrations to list.
+    """
+    with open(path, "w", encoding="utf-8", newline="") as fh:
+        writer = csv.writer(fh, lineterminator="\n")
+        writer.writerow(["old_id", "new_id"])
+        for build in builds:
+            writer.writerows(build.migrations)
+
+
+def _write_checksums(output_dir: Path, files: Iterable[Path]) -> Path:
+    """Write ``checksums.txt`` (``sha256  filename``, sorted by name).
+
+    Args:
+        output_dir: The release directory.
+        files: The files to list.
+
+    Returns:
+        The checksums file.
+    """
+    path = output_dir / CHECKSUMS_FILENAME
+    lines = [f"{storage.sha256_file(f)}  {f.name}" for f in sorted(files, key=lambda p: p.name)]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
 
 
 def build_library(
-    record_streams: dict[str, Iterator[SpectrumRecord]],
-    source_metadata: dict[str, SourceInfo],
+    sources: Mapping[str, tuple[Iterable[SpectrumRecord], CollectionMetadata]],
     output_dir: Path,
-) -> CatalogFile:
-    """Build the master library from multiple record streams.
-
-    Each source produces a single Parquet file at
-    ``spectra/<source>.parquet``. Row groups inside the file give
-    downstream consumers partial-read granularity via HTTP Range requests.
+    *,
+    release: str | None = None,
+    created: str | None = None,
+) -> LibraryBuild:
+    """Build a flat release directory from ingested collections.
 
     Args:
-        record_streams: Mapping of source name to an iterator of SpectrumRecord.
-        source_metadata: Mapping of source name to SourceInfo.
-        output_dir: Root directory for the output library.
+        sources: Collection id -> (records, collection metadata).
+        output_dir: The release directory (created if needed).
+        release: Release version for the index footer; defaults to the
+            package version.
+        created: RFC 3339 timestamp shared by every footer; defaults to now.
 
     Returns:
-        The completed CatalogFile object.
+        The build result.
     """
+    from openspeclib import __version__
+
+    release = release or __version__
+    created = created or storage.utc_timestamp()
     output_dir.mkdir(parents=True, exist_ok=True)
-    spectra_dir = output_dir / "spectra"
-    spectra_dir.mkdir(parents=True, exist_ok=True)
 
-    catalog_entries: list[CatalogRecord] = []
-    source_counts: dict[str, int] = defaultdict(int)
-    category_counts: dict[str, int] = defaultdict(int)
+    builds: list[CollectionBuild] = []
+    for collection_id in sorted(sources):
+        records, metadata = sources[collection_id]
+        logger.info("Building collection %s", collection_id)
+        builds.append(build_collection(records, metadata, output_dir, created=created))
 
-    # Track the first record per source so we can enrich placeholder SourceInfo.
-    first_records: dict[str, SpectrumRecord] = {}
+    index_path = output_dir / storage.INDEX_FILENAME
+    storage.write_index(
+        [b.path for b in builds], index_path, release=release, created=created, with_sha256=True
+    )
+    migration_path = output_dir / ID_MIGRATION_FILENAME
+    _write_migrations(migration_path, builds)
 
-    # Track per-source per-dataset rollups for aggregated sources (ECOSIS, OSSL):
-    # source -> dataset_id -> (Dataset template from first sighting, running count).
-    dataset_rollups: dict[str, dict[str, tuple[SpectrumRecord, int]]] = defaultdict(dict)
-
-    # Wavelength axes are shared across spectra (USGS uses ~3 grids for ~2.5k
-    # spectra; ECOSIS ~10 across ~17k); deduplicate them into a master
-    # ``wavelengths.parquet`` and reference each by ``grid_id`` from the
-    # per-source files.
-    registry = storage.WavelengthRegistry()
-
-    for source_name, records in record_streams.items():
-        logger.info("Processing source: %s", source_name)
-        chunk_rel_path = f"spectra/{source_name}.parquet"
-        chunk_path = output_dir / chunk_rel_path
-
-        def _tee(stream: Iterator[SpectrumRecord], name: str) -> Iterator[SpectrumRecord]:
-            """Forward records to the Parquet writer while also building catalog entries.
-
-            Args:
-                stream: Upstream iterator of ``SpectrumRecord``.
-                name: Source identifier used to key counters.
-
-            Yields:
-                Each record, unchanged.
-            """
-            for record in stream:
-                if name not in first_records:
-                    first_records[name] = record
-                catalog_entries.append(
-                    CatalogRecord.from_spectrum(record, chunk_file=chunk_rel_path)
-                )
-                source_counts[name] += 1
-                category_counts[record.material.category.value] += 1
-                ds = record.source.dataset
-                if ds is not None:
-                    existing = dataset_rollups[name].get(ds.id)
-                    if existing is None:
-                        dataset_rollups[name][ds.id] = (record, 1)
-                    else:
-                        dataset_rollups[name][ds.id] = (existing[0], existing[1] + 1)
-                yield record
-
-        storage.write_source(
-            _tee(records, source_name),
-            chunk_path,
-            source=source_name,
-            registry=registry,
+    files = [b.path for b in builds] + [index_path, migration_path]
+    _write_checksums(output_dir, files)
+    written = {f.name for f in files} | {CHECKSUMS_FILENAME}
+    stale = sorted(p.name for p in output_dir.iterdir() if p.name not in written)
+    if stale:
+        logger.warning(
+            "%s holds files this build did not write (not in checksums.txt): %s",
+            output_dir,
+            ", ".join(stale),
         )
-
-    # Flush the deduplicated wavelength registry as a sibling parquet file.
-    wavelengths_path = spectra_dir / storage.WAVELENGTHS_FILENAME
-    if len(registry) > 0:
-        storage.write_wavelengths(registry, wavelengths_path)
-
-    # Enrich source metadata from the first record of each source and update counts.
-    for name, info in source_metadata.items():
-        updates: dict[str, object] = {"spectrum_count": source_counts.get(name, 0)}
-        first = first_records.get(name)
-        if first is not None:
-            src = first.source
-            # Fill in empty placeholder fields from the actual record data.
-            if not info.name:
-                updates["name"] = src.library.value
-            if not info.version:
-                updates["version"] = src.library_version
-            if not info.url:
-                updates["url"] = src.url
-            if not info.license:
-                updates["license"] = src.license
-            if not info.citation:
-                updates["citation"] = src.citation
-            # Populate extra fields from the registry if not already set.
-            extras = _SOURCE_EXTRA.get(name, {})
-            if info.license_url is None and extras.get("license_url"):
-                updates["license_url"] = extras["license_url"]
-            if info.citation_doi is None and extras.get("citation_doi"):
-                updates["citation_doi"] = extras["citation_doi"]
-        source_metadata[name] = info.model_copy(update=updates)
-
-    # Build catalog
-    catalog = CatalogFile(
-        openspeclib_version=__version__,
-        generated_at=datetime.now(timezone.utc),
-        sources=source_metadata,
-        statistics=CatalogStatistics(
-            total_spectra=sum(source_counts.values()),
-            categories=dict(category_counts),
-        ),
-        spectra=catalog_entries,
+    return LibraryBuild(
+        output_dir=output_dir,
+        release=release,
+        collections=builds,
+        index_path=index_path,
+        files=files,
     )
-
-    # Write catalog
-    catalog_path = output_dir / "catalog.json"
-    catalog_path.write_text(
-        catalog.model_dump_json(indent=2),
-        encoding="utf-8",
-    )
-    logger.info(
-        "Wrote catalog with %d entries to %s",
-        len(catalog_entries),
-        catalog_path,
-    )
-
-    # Write VERSION file
-    version_path = output_dir / "VERSION"
-    version_path.write_text(__version__ + "\n", encoding="utf-8")
-
-    # Write licenses.json
-    now = datetime.now(timezone.utc)
-    license_entries: dict[str, LicenseEntry] = {}
-    for name, info in source_metadata.items():
-        extras = _SOURCE_EXTRA.get(name, {})
-        datasets = _build_dataset_license_entries(dataset_rollups.get(name, {}))
-        license_entries[name] = LicenseEntry(
-            name=info.name,
-            version=info.version,
-            url=info.url,
-            license=info.license,
-            license_url=info.license_url or extras.get("license_url"),
-            citation=info.citation,
-            citation_doi=info.citation_doi or extras.get("citation_doi"),
-            datasets=datasets,
-        )
-
-    licenses_file = LicensesFile(
-        openspeclib_version=__version__,
-        generated_at=now,
-        notice=_LICENSES_NOTICE,
-        sources=license_entries,
-    )
-    licenses_path = output_dir / "licenses.json"
-    licenses_path.write_text(
-        licenses_file.model_dump_json(indent=2),
-        encoding="utf-8",
-    )
-    logger.info("Wrote licenses.json to %s", licenses_path)
-
-    return catalog

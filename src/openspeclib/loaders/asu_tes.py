@@ -13,16 +13,24 @@ from typing import Iterator
 
 from tqdm import tqdm
 
-from openspeclib.loaders.base import BaseLoader
+from openspeclib.loaders.base import (
+    GENERIC_SENTINELS,
+    BaseLoader,
+    drop_invalid_wavelengths,
+    mask_invalid_values,
+    monotonic_axis,
+    spectrum_id,
+)
 from openspeclib.models import (
+    CollectionInfo,
+    Geometry,
+    Inclusion,
+    LicenseRef,
     Material,
     MaterialCategory,
     Measurement,
-    MeasurementTechnique,
-    Quality,
+    Quantity,
     Sample,
-    Source,
-    SourceLibrary,
     SpectralData,
     SpectrumRecord,
     WavelengthUnit,
@@ -30,24 +38,49 @@ from openspeclib.models import (
 
 logger = logging.getLogger(__name__)
 
-ASU_TES_SOURCE = Source(
-    library=SourceLibrary.ASU_TES,
-    library_version="2.0",
-    original_id="",
+COLLECTION_ID = "asu_tes"
+
+ASU_TES_LICENSE = "LicenseRef-ASU-TES-ResearchUse"
+
+ASU_TES_COLLECTION = CollectionInfo(
+    id=COLLECTION_ID,
+    title="ASU Thermal Emission Spectral Library",
+    description=(
+        "Thermal infrared emission spectra of rock-forming minerals (2000 to 220 cm-1) "
+        "measured at the Arizona State University Thermal Emission Spectroscopy Laboratory."
+    ),
+    version="2.0",
     url="https://speclib.asu.edu",
-    license="Public Domain",
+    publisher="Arizona State University",
+    license=ASU_TES_LICENSE,
+    license_refs={
+        ASU_TES_LICENSE: LicenseRef(
+            name="ASU spectral library data: freely available for research use with citation",
+            url="https://speclib.asu.edu",
+        )
+    },
+    inclusion=Inclusion.SUBSET,
+    inclusion_notes=(
+        "Whatever spectra are placed in the ingest directory by hand (the source has no "
+        "automatic download), so completeness depends on that download."
+    ),
     citation=(
         "Christensen, P.R., Bandfield, J.L., Hamilton, V.E., Howard, D.A., "
         "Lane, M.D., Piatek, J.L., Ruff, S.W., and Stefanov, W.L., 2000, "
         "A thermal emission spectral library of rock-forming minerals: "
-        "Journal of Geophysical Research, v. 105, no. E4, p. 9735-9739."
+        "Journal of Geophysical Research, v. 105, no. E4, p. 9735-9739. "
+        "https://doi.org/10.1029/1999JE001138."
     ),
 )
 
-ASU_TES_SOURCE_INFO_EXTRA = {
-    "license_url": None,
-    "citation_doi": "10.1029/1999JE001138",
-}
+# Every ASU TES spectrum is an emission measurement: the heated sample is
+# viewed from above by the spectrometer's fore-optics and its radiance is
+# ratioed to that of a blackbody at the sample temperature (Christensen et al.
+# 2000, cited above; calibration per Ruff et al. 1997, J. Geophys. Res. 102,
+# 14899-14913, which uses blackbody targets at two temperatures). That is a
+# directional emissivity with no illumination geometry: ``directional``.
+ASU_TES_GEOMETRY = Geometry.DIRECTIONAL
+ASU_TES_REFERENCE = "blackbody"
 
 ASU_MINERAL_GROUP_MAP: dict[str, str] = {
     "silicate": "silicate",
@@ -146,6 +179,12 @@ def parse_asu_tes_file(filepath: Path) -> SpectrumRecord:
             except ValueError:
                 continue
 
+    # Missing-value contract (see loaders.base): no NaN wavelengths, and
+    # sentinel / non-finite values become NaN.
+    wavenumbers, values = drop_invalid_wavelengths(wavenumbers, values)
+    values = mask_invalid_values(values, sentinels=GENERIC_SENTINELS)
+    wavenumbers, values, axis_extra = monotonic_axis(wavenumbers, values)
+
     if not wavenumbers:
         raise ValueError(f"No spectral data found in {filepath}")
 
@@ -159,11 +198,11 @@ def parse_asu_tes_file(filepath: Path) -> SpectrumRecord:
     original_id = filepath.stem
 
     return SpectrumRecord(
-        id=f"asu_tes:{original_id}",
+        id=spectrum_id(COLLECTION_ID, original_id),
+        collection=COLLECTION_ID,
+        original_id=original_id,
         name=name,
-        source=ASU_TES_SOURCE.model_copy(
-            update={"original_id": original_id, "filename": filepath.name}
-        ),
+        license=ASU_TES_LICENSE,
         material=Material(
             name=name,
             category=MaterialCategory.MINERAL,
@@ -178,25 +217,19 @@ def parse_asu_tes_file(filepath: Path) -> SpectrumRecord:
             owner="ASU Thermal Emission Spectroscopy Laboratory",
         ),
         measurement=Measurement(
+            quantity=Quantity.EMISSIVITY,
+            geometry=ASU_TES_GEOMETRY,
             instrument="Mattson Cygnus 100 FTIR spectrometer",
             instrument_type="ftir",
             laboratory="ASU Thermal Emission Spectroscopy Laboratory",
-            technique=MeasurementTechnique.EMISSIVITY,
+            reference=ASU_TES_REFERENCE,
         ),
         spectral_data=SpectralData(
-            type=MeasurementTechnique.EMISSIVITY,
             wavelength_unit=WavelengthUnit.WAVENUMBERS,
-            wavelength_min=min(wavenumbers),
-            wavelength_max=max(wavenumbers),
-            num_points=len(wavenumbers),
             wavelengths=wavenumbers,
             values=values,
         ),
-        quality=Quality(
-            has_bad_bands=False,
-            bad_band_count=0,
-            coverage_fraction=1.0,
-        ),
+        extra=axis_extra,
     )
 
 
@@ -209,8 +242,16 @@ class AsuTesLoader(BaseLoader):
         return False
 
     def source_name(self) -> str:
-        """Return the source library identifier."""
-        return "asu_tes"
+        """Return the collection id."""
+        return COLLECTION_ID
+
+    def collection_info(self) -> CollectionInfo:
+        """Return the ASU TES collection metadata.
+
+        Returns:
+            The footer ``collection`` object.
+        """
+        return ASU_TES_COLLECTION
 
     def download(self, target_dir: Path) -> Path:
         """Download ASU TES spectral data.

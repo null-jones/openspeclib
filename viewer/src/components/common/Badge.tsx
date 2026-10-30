@@ -1,3 +1,5 @@
+import { own } from '../../lib/own';
+
 const CATEGORY_COLORS: Record<string, string> = {
   mineral: 'bg-blue-100 text-blue-700',
   rock: 'bg-amber-100 text-amber-700',
@@ -15,7 +17,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 export default function Badge({ category }: { category: string }) {
-  const color = CATEGORY_COLORS[category] ?? 'bg-gray-100 text-gray-600';
+  const color = own(CATEGORY_COLORS, category) ?? 'bg-gray-100 text-gray-600';
   return (
     <span className={`px-1.5 py-0.5 text-xs rounded-md font-medium ${color}`}>
       {category.replace(/_/g, ' ')}
