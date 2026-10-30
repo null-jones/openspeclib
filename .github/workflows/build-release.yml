@@ -195,6 +195,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
+          # Tag the commit this run built; without it the tag is created on the
+          # default branch, whatever ref the workflow ran from.
+          target_commitish: ${{ github.sha }}
           name: OpenSpecLib v${{ inputs.version }}
           body_path: release_notes.md
           files: |
