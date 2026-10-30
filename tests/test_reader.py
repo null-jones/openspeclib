@@ -309,19 +309,24 @@ def test_remote_without_duckdb(monkeypatch) -> None:
 
 @pytest.fixture
 def big_release(tmp_path: Path) -> Iterator[tuple[str, Path]]:
-    """A 1,000-spectrum collection (10 row groups) served over HTTP."""
+    """A 2,000-spectrum collection (20 row groups) served over HTTP.
+
+    The file is large enough that one row group is a small part of it: DuckDB 2.0
+    fetches a remote file under 2 MiB whole and rounds remote reads up to larger blocks.
+    """
     from openspeclib.storage import write_collection
 
-    axis = [400.0 + i for i in range(500)]
+    bands = 1000
+    axis = [400.0 + i for i in range(bands)]
     rng = np.random.default_rng(7)
     records = [
         make_record(
             f"s{i:04d}",
             unit=WavelengthUnit.NANOMETERS,
             wavelengths=axis,
-            values=rng.random(500).tolist(),
+            values=rng.random(bands).tolist(),
         )
-        for i in range(1000)
+        for i in range(2000)
     ]
     root = tmp_path / "big"
     path = root / "usgs_splib07.parquet"
@@ -346,9 +351,10 @@ def test_remote_get_prunes_row_groups(big_release: tuple[str, Path]) -> None:
     expected = pq.read_table(path, filters=pc.field("id") == "usgs_splib07:s0537")
     assert s.values[0] == pytest.approx(expected["values"][0][0].as_py())
     fetched = sum(n for _, n in SERVED)
-    # One row group of ten plus footer reads: far less than the whole file.
+    # One row group of twenty plus footer reads: far less than the whole file.
     assert 0 < fetched < size / 4, (fetched, size, SERVED)
-    assert len(SERVED) <= 6, SERVED
+    # DuckDB 2.0 reads the footer twice in a file's first query.
+    assert len(SERVED) <= 10, SERVED
     assert all(not name.endswith(".part") for name, _ in SERVED)
 
 

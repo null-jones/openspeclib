@@ -116,17 +116,40 @@ def _duckdb() -> Any:
     return duckdb
 
 
-def _fetch_arrow(result: Any) -> pa.Table:
-    """Fetch a DuckDB result as a pyarrow table across DuckDB versions.
+def _fetch_arrow(con: Any, sql: str) -> pa.Table:
+    """Run a query and fetch the result as a pyarrow table across DuckDB versions.
+
+    The query runs as a relation (``con.sql``): DuckDB 2.0 warns that Arrow
+    output from an ``execute`` result copies the rows.
 
     Args:
-        result: A DuckDB connection after ``execute``.
+        con: A DuckDB connection.
+        sql: The query.
 
     Returns:
         The result table.
     """
-    fetch = getattr(result, "to_arrow_table", None) or result.fetch_arrow_table
+    relation = con.sql(sql)
+    fetch = getattr(relation, "to_arrow_table", None) or relation.fetch_arrow_table
     return fetch()
+
+
+def _fetch_first(con: Any, sql: str, params: list[Any] | None = None) -> tuple[Any, ...] | None:
+    """Run a query and return its first row.
+
+    Fetches every row: DuckDB 2.0 refuses further work on a connection while an
+    ``execute`` result is unfinished, which ``fetchone`` leaves it.
+
+    Args:
+        con: A DuckDB connection.
+        sql: The query.
+        params: Query parameters.
+
+    Returns:
+        The first row, or ``None`` when there is none.
+    """
+    rows = con.execute(sql, params or []).fetchall()
+    return rows[0] if rows else None
 
 
 def _sql_string(value: str) -> str:
@@ -366,10 +389,11 @@ class Collection(_Searchable):
         Returns:
             The raw value, or ``None``.
         """
-        row = self._con.execute(
+        row = _fetch_first(
+            self._con,
             "SELECT value FROM parquet_kv_metadata(?) WHERE decode(key) = ?",
             [self.location, key],
-        ).fetchone()
+        )
         return None if row is None else bytes(row[0])
 
     def _sql(self, columns: Iterable[str] | None, where: str | None = None) -> pa.Table:
@@ -386,7 +410,7 @@ class Collection(_Searchable):
         sql = f"SELECT {select} FROM read_parquet({_sql_string(self.location)})"
         if where:
             sql += f" WHERE {where}"
-        return _fetch_arrow(self._con.execute(sql))
+        return _fetch_arrow(self._con, sql)
 
     # -- public API -----------------------------------------------------
 
@@ -406,11 +430,11 @@ class Collection(_Searchable):
         """Return the number of spectra."""
         if self._pf is not None:
             return int(self._pf.metadata.num_rows)
-        return int(
-            self._con.execute(
-                f"SELECT count(*) FROM read_parquet({_sql_string(self.location)})"
-            ).fetchone()[0]
+        row = _fetch_first(
+            self._con, f"SELECT count(*) FROM read_parquet({_sql_string(self.location)})"
         )
+        assert row is not None
+        return int(row[0])
 
     def __repr__(self) -> str:
         """Return a short description."""
@@ -557,10 +581,11 @@ class Index(_Searchable):
         self._collections: dict[str, Collection] = {}
         if self.remote:
             self._con = _duckdb().connect()
-            row = self._con.execute(
+            row = _fetch_first(
+                self._con,
                 "SELECT value FROM parquet_kv_metadata(?) WHERE decode(key) = ?",
                 [self.location, INDEX_FOOTER_KEY],
-            ).fetchone()
+            )
             raw = None if row is None else bytes(row[0])
         else:
             md = pq.read_metadata(self.location)
@@ -596,7 +621,7 @@ class Index(_Searchable):
         if self._meta is None:
             if self.remote:
                 self._meta = _fetch_arrow(
-                    self._con.execute(f"SELECT * FROM read_parquet({_sql_string(self.location)})")
+                    self._con, f"SELECT * FROM read_parquet({_sql_string(self.location)})"
                 )
             else:
                 self._meta = pq.read_table(self.location)

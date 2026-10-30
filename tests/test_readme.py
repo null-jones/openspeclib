@@ -250,7 +250,8 @@ def test_readme_sql_reads_the_axis(release: Path, monkeypatch: pytest.MonkeyPatc
 def test_readme_sql_footer(release: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     duckdb = pytest.importorskip("duckdb")
     monkeypatch.chdir(release)
-    (value,) = duckdb.sql(_blocks(ROOT / "README.md")["sql-footer"]).fetchone()
+    # Relations lost fetchone() in DuckDB 2.0; fetchall() works in every version.
+    [(value,)] = duckdb.sql(_blocks(ROOT / "README.md")["sql-footer"]).fetchall()
     footer = json.loads(value)
     assert footer["collection"]["id"] == "usgs_splib07"
     assert footer["format_version"].startswith("1.")

@@ -30,6 +30,12 @@ LOADERS = {
 }
 
 
+class ConfigError(click.ClickException):
+    """A usage or configuration error (exit 2), distinct from a failed validation (exit 1)."""
+
+    exit_code = 2
+
+
 def _get_loader(source: str) -> BaseLoader:
     """Dynamically import and instantiate a loader by source name.
 
@@ -352,10 +358,7 @@ def validate(
         try:
             allowlist = Allowlist.load(allowlist_paths, include_default=not no_default_allowlist)
         except ValueError as e:
-            # Exit 2 (usage/config error), distinct from exit 1 (validation failed).
-            error = click.ClickException(str(e))
-            error.exit_code = 2
-            raise error from e
+            raise ConfigError(str(e)) from e
     if profile != "openspeclib":
         allowlist = None
         if allowlist_paths or no_default_allowlist:
