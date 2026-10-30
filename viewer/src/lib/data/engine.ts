@@ -9,4 +9,10 @@ export interface DataEngine {
   rows(sql: string): Promise<Row[]>;
   /** Large results as plain column arrays. */
   columns(sql: string): Promise<Record<string, unknown[]>>;
+  /**
+   * A reference to a collection file that DuckDB can read: the same ref, or
+   * a downloaded copy when the host breaks Range reads (see remote.ts).
+   * Without it, refs are read as they are.
+   */
+  readable?(ref: string): Promise<string>;
 }

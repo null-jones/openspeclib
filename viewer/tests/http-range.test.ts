@@ -14,6 +14,7 @@ import * as duckdb from '@duckdb/duckdb-wasm/blocking';
 import { tableToColumns, tableToRows } from '../src/lib/conformance/arrow-rows';
 import { DUCKDB_FILESYSTEM } from '../src/lib/duckdb';
 import { fetchSpectra } from '../src/lib/data/spectra';
+import { remoteFileResolver } from '../src/lib/data/remote';
 import type { DataEngine } from '../src/lib/data/engine';
 import type { DataSource, SpectrumRecord } from '../src/lib/data/types';
 import { SyncXHR } from './helpers/sync-xhr';
@@ -58,7 +59,12 @@ async function browserRuntimeDuckDB(config?: duckdb.DuckDBConfig) {
     rows: async (sql) => tableToRows(conn.query(sql)),
     columns: async (sql) => tableToColumns(conn.query(sql)),
   };
-  return { engine, close: () => db.reset() };
+  /** The same engine with the app's check for hosts that break Range reads. */
+  const checked: DataEngine = {
+    ...engine,
+    readable: remoteFileResolver(async (name, bytes) => db.registerFileBuffer(name, bytes)),
+  };
+  return { engine, checked, close: () => db.reset() };
 }
 
 const record: SpectrumRecord = {
@@ -120,5 +126,39 @@ describe.skipIf(!available)('HTTP Range reads', () => {
     const size = statSync(join(DATA, FILE)).size;
     expect(log.every((l) => l.range !== null && l.status === 206)).toBe(true);
     expect(total).toBeLessThan(Math.min(3_000_000, size / 4));
+  }, 120_000);
+
+  test('the Range check keeps Range reads where they work', async () => {
+    const before = (await serverLog()).length;
+    const { checked, close } = await browserRuntimeDuckDB({ filesystem: DUCKDB_FILESYSTEM });
+    const source = { key: 'http', fileRefs: { [FILE]: `${base}/${FILE}?v=checked` } } as unknown as DataSource;
+    const [spectrum] = await fetchSpectra(checked, [record], new Map([['http', source]]));
+    close();
+    expect(spectrum.values.length).toBeGreaterThan(100);
+    const log = (await serverLog()).slice(before).filter((l) => l.method === 'GET');
+    expect(log.every((l) => l.range !== null && l.status === 206)).toBe(true);
+    expect(log.reduce((s, l) => s + l.bytes, 0)).toBeLessThan(3_000_000);
+  }, 120_000);
+
+  test('a host that gzips Range responses (GitHub Pages) breaks Range reads', async () => {
+    const { engine, close } = await browserRuntimeDuckDB({ filesystem: DUCKDB_FILESYSTEM });
+    const source = { key: 'http', fileRefs: { [FILE]: `${base}/gh-pages/${FILE}?v=broken` } } as unknown as DataSource;
+    await expect(fetchSpectra(engine, [record], new Map([['http', source]]))).rejects.toThrow();
+    close();
+  }, 120_000);
+
+  test('on such a host the file is downloaded once and read from memory', async () => {
+    const before = (await serverLog()).length;
+    const { checked, close } = await browserRuntimeDuckDB({ filesystem: DUCKDB_FILESYSTEM });
+    const source = { key: 'http', fileRefs: { [FILE]: `${base}/gh-pages/${FILE}?v=fallback` } } as unknown as DataSource;
+    const sources = new Map([['http', source]]);
+    const [spectrum] = await fetchSpectra(checked, [record], sources);
+    const [again] = await fetchSpectra(checked, [record], sources);
+    close();
+    expect(spectrum.values.length).toBeGreaterThan(100);
+    expect(again.values).toEqual(spectrum.values);
+    const log = (await serverLog()).slice(before).filter((l) => l.method === 'GET');
+    // The 4-byte check, then one plain GET of the whole (gzip) file; nothing more.
+    expect(log.map((l) => l.range)).toEqual(['bytes=-4', null]);
   }, 120_000);
 });
