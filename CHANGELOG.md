@@ -7,7 +7,9 @@ Two version numbers are involved:
 - **Release version** (this file): the `openspeclib` Python package and the data releases built with it share one version, starting with 0.2.0. Releases v0.0.1 to v0.0.7 were data releases tagged in git.
 - **Specification version**: the [OpenSpecLib Format](docs/spec/format-v1.md) has its own version (1.0.0), which changes only through the [RFC process](docs/rfcs/README.md).
 
-## [0.2.0] - Unreleased
+## [Unreleased]
+
+## [0.2.0] - 2026-10-30
 
 The first release in [OpenSpecLib Format v1](docs/spec/format-v1.md) (specification 1.0.0, [RFC 0001](docs/rfcs/0001-format-v1.md)). It also fixes data errors present in every earlier release, so users of v0.0.x releases should switch rather than keep the old files. The release holds 29,669 spectra: USGS Spectral Library Version 7 (2,457), ECOSTRESS (3,451) and a curated EcoSIS collection (23,761).
 
@@ -134,7 +136,8 @@ The first release in [OpenSpecLib Format v1](docs/spec/format-v1.md) (specificat
 
 - First release: Pydantic data model, loaders for USGS Speclib 07, ECOSTRESS, RELAB, ASU TES and Bishop, a JSON catalog with Parquet spectra, the `openspeclib` CLI (download, ingest, combine, validate), CI and a release workflow.
 
-[0.2.0]: https://github.com/null-jones/openspeclib/compare/v0.0.7...HEAD
+[Unreleased]: https://github.com/null-jones/openspeclib/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/null-jones/openspeclib/compare/v0.0.7...v0.2.0
 [0.0.7]: https://github.com/null-jones/openspeclib/compare/v0.0.6...v0.0.7
 [0.0.6]: https://github.com/null-jones/openspeclib/compare/v0.0.5...v0.0.6
 [0.0.5]: https://github.com/null-jones/openspeclib/compare/v0.0.4...v0.0.5

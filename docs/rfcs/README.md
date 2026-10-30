@@ -57,4 +57,4 @@ Readers must reject a file whose major `format_version` they do not support, so 
 
 | RFC | Title | Status | Spec version |
 |---|---|---|---|
-| [0001](0001-format-v1.md) | OpenSpecLib Format v1 | Accepted | 1.0.0 |
+| [0001](0001-format-v1.md) | OpenSpecLib Format v1 | Implemented | 1.0.0 |

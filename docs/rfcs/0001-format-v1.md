@@ -1,6 +1,6 @@
 # RFC 0001: OpenSpecLib Format v1
 
-- **Status:** Accepted (implemented in release 0.2.0; becomes Implemented when 0.2.0 is published)
+- **Status:** Implemented (release 0.2.0, 2026-10-30)
 - **Author(s):** Ellie Jones
 - **Created:** 2026-10-29
 - **Discussion:** none: bootstrap RFC, accepted by the maintainer without the 14-day discussion window
